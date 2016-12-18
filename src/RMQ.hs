@@ -24,6 +24,9 @@ singletonRmq x = RMQ {
 query :: (Monoid a) => RMQ a -> Range -> a
 query rmq = queryImpl (root rmq) (Range 0 (size rmq))
 
+fromList :: (Monoid a) => [a] -> RMQ a
+fromList = build
+
 
 -- Private structure
 
@@ -52,11 +55,11 @@ queryImpl node (Range lo hi) range@(Range b e)
 
 -- Constructing from binary counter
 
-fromList :: (Monoid a) => [a] -> RMQ a
-fromList [] = emptyRmq
-fromList xs = loop [] (map singletonRmq xs)
+build :: (Monoid a) => [a] -> RMQ a
+build [] = emptyRmq
+build xs = loop [] (map singletonRmq xs)
   where
-    loop (c:cs) [] = foldl merge c cs
+    loop counter [] = foldr1 merge counter -- Order is crutial here
     loop [] (x:xs) = loop [x] xs
     loop counter@(c:cs) (x:xs)
       | size c >  size x = loop (x:counter) xs
@@ -69,11 +72,14 @@ fromList xs = loop [] (map singletonRmq xs)
                         _rhs = root b }}
 
 
+-- | Test Driver
 
 testRMQ :: IO ()
 testRMQ = do
   let rmq = fromList (map Min [3, 2, 1, 3, 1, 2, 4 :: Int])
-  print $ query rmq (Range 0 7)
-
+  print $ 1 == query rmq (Range 0 7)
+  print $ 2 == query rmq (Range 1 2)
+  print $ 1 == query rmq (Range 1 3)
+  print $ 1 == query rmq (Range 0 100)
 
 --
