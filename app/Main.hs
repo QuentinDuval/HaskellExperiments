@@ -1,6 +1,9 @@
 module Main where
 
 import Lib
+import qualified RMQ
 
 main :: IO ()
-main = someFunc
+main = do
+  someFunc
+  RMQ.testRMQ
