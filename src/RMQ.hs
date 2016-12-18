@@ -43,6 +43,7 @@ data PrivNode a
 -- TODO Handle Null node
 
 queryImpl :: (Monoid a) => PrivNode a -> Range -> Range -> a
+queryImpl Null _ _ = mempty
 queryImpl node (Range lo hi) range@(Range b e)
   | lo >= e || hi <= b = mempty
   | b <= lo && hi <= e = _val node
@@ -81,5 +82,6 @@ testRMQ = do
   print $ 2 == query rmq (Range 1 2)
   print $ 1 == query rmq (Range 1 3)
   print $ 1 == query rmq (Range 0 100)
+  print $ query (emptyRmq :: RMQ (Min Int)) (Range 2 1)
 
 --
