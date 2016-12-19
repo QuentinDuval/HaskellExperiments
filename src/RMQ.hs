@@ -68,10 +68,12 @@ build xs = loop [] (map singletonRmq xs)
       | size c >  size x = loop (x:counter) xs
       | size c == size x = loop cs (merge c x : xs)
 
-    merge a b = RMQ { size = size a + size b,
-                      root = PrivNode {
-                        _val = _val (root a) <> _val (root b),
-                        _lhs = root a,
-                        _rhs = root b }}
+
+merge :: (Monoid a) => RMQ a -> RMQ a -> RMQ a
+merge a b = RMQ { size = size a + size b,
+                  root = PrivNode {
+                    _val = _val (root a) <> _val (root b),
+                    _lhs = root a,
+                    _rhs = root b }}
 
 --
