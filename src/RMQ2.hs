@@ -1,4 +1,8 @@
-module RMQ2 where
+module RMQ2 (
+  RMQ(width),
+  fromList,
+  query,
+) where
 
 import Data.Monoid((<>))
 import qualified Data.Vector as V
@@ -33,8 +37,8 @@ query (RMQ width tree) (Range lo hi) = queryImpl 0 0 width -- [lo, hi) is open s
         | lo <= l && r <= hi = tree V.! node
         | otherwise = queryImpl lhs l mid <> queryImpl rhs mid r
         where
-          lhs = 2 * node + 1
-          rhs = 2 * node + 2
+          lhs = 2 * node + 1 -- left node
+          rhs = 2 * node + 2 -- right node
           mid = div (l + r) 2
 
 
