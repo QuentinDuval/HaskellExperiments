@@ -48,7 +48,8 @@ treeWalkC' = loop id
     -- TODO: use Cont monad with mapM?
     loop cont (Node v []) = cont [v]
     loop cont (Node v (c:cs)) =
-      let conts = foldl (\comp n -> \r' -> loop (\r -> comp (r' ++ r)) n)
+      let conts = foldl (\comp n ->
+                          \r' -> loop (comp . (r' ++)) n)
                         (cont . (v :)) cs
       in loop conts c
 
