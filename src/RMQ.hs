@@ -45,8 +45,6 @@ data PrivNode a
 
 
 -- Query Impl
--- TODO Find a way to query with just one range, not need for two!
--- TODO Handle Null node
 
 queryImpl :: (Monoid a) => PrivNode a -> Range -> Range -> a
 queryImpl Null _ _ = mempty
