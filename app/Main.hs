@@ -21,12 +21,15 @@ main = do
 
 testRMQPerf :: Benchmark
 testRMQPerf =
-  let inputs = map Min [1..1000000 :: Int]
+  let n = 1000000 :: Int
+      inputs = map Min [1..n]
       rmq = RMQ.fromList inputs
       rmq2 = RMQ2.fromList inputs
   in bgroup "RMQ" [
-      bench "Big queries" $ nf (RMQ.query rmq) (Range 100 10000),
-      bench "Big queries" $ nf (RMQ2.query rmq2) (Range 100 10000)
+      bench "Query - Tree based" $ nf (RMQ.query rmq) (Range 100 10000),
+      bench "Build - Tree based" $ nf (RMQ.query (RMQ.fromList inputs)) (Range 0 n),
+      bench "Query - Vect based" $ nf (RMQ2.query rmq2) (Range 100 10000),
+      bench "Build - Vect based" $ nf (RMQ2.query (RMQ2.fromList inputs)) (Range 0 n)
     ]
 
 -- For interactive use
