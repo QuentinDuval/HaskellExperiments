@@ -34,8 +34,24 @@ treeWalkH' = reverse . loop [] []
     loop stack  visited (Node v (c:cs)) = loop (cs:stack) (v:visited) c
     loop []     visited (Node v []) = v : visited
     loop ([]:t) visited n = loop t visited n
-    loop (h:t)  visited (Node v [])
-      = loop (tail h:t) (v:visited) (head h)
+    loop (h:t)  visited (Node v []) = loop (tail h:t) (v:visited) (head h)
+
+-- Continuation passing style
+
+treeWalkC :: Tree a -> [a]
+treeWalkC EmptyTree = []
+treeWalkC (Tree root) = treeWalkC' root
+
+treeWalkC' :: Node a -> [a]
+treeWalkC' = loop id
+  where
+    -- TODO: use Cont monad with mapM?
+    loop cont (Node v []) = cont [v]
+    loop cont (Node v (c:cs)) =
+      let conts = foldl (\comp n -> \r' -> loop (\r -> comp (r' ++ r)) n)
+                        (cont . (v :)) cs
+      in loop conts c
+
 
 --
 
@@ -46,5 +62,6 @@ testDfs = do
 
   print $ treeWalkR t
   print $ treeWalkH t
+  print $ treeWalkC t
 
 --
