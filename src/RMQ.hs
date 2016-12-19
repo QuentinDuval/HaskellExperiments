@@ -8,15 +8,13 @@ module RMQ (
 ) where
 
 import Data.Monoid((<>))
-
+import Range
 
 -- Range minimum query
 
 data RMQ a
   = RMQ { size :: !Int, root :: PrivNode a }
   deriving (Show, Eq, Ord)
-
-data Range = Range { low :: !Int, high :: !Int } -- Open range on the right [low, high)
 
 emptyRmq :: RMQ a
 emptyRmq = RMQ { size = 0, root = Null }

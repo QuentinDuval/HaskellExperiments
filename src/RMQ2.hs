@@ -2,6 +2,7 @@ module RMQ2 where
 
 import Data.Monoid((<>))
 import qualified Data.Vector as V
+import Range
 
 
 -- Range minimum query type
@@ -24,8 +25,8 @@ fromList xs =
 
 -- Query
 
-query :: (Monoid a) => RMQ a -> Int -> Int -> a
-query (RMQ width tree) lo hi = queryImpl 0 0 width -- [lo, hi) is open searched range
+query :: (Monoid a) => RMQ a -> Range -> a
+query (RMQ width tree) (Range lo hi) = queryImpl 0 0 width -- [lo, hi) is open searched range
     where
       queryImpl node l r -- Current node index + [start, end) of current range
         | r <= lo || hi <= l = mempty
