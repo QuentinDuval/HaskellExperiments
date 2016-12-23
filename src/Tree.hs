@@ -31,10 +31,12 @@ treeWalkH (Tree root) = treeWalkH' root
 treeWalkH' :: Node a -> [a]
 treeWalkH' = reverse . loop [] []
   where
-    loop stack  visited (Node v (c:cs)) = loop (cs:stack) (v:visited) c
-    loop []     visited (Node v []) = v : visited
-    loop ([]:t) visited n = loop t visited n
-    loop (h:t)  visited (Node v []) = loop (tail h:t) (v:visited) (head h)
+    loop out []     (Node v [])     = v:out -- End of traversal
+    loop out stack  (Node v (c:cs)) = loop (v:out) (toStack (cs:stack)) c
+    loop out (h:t)  (Node v [])     = loop (v:out) (toStack (tail h:t)) (head h)
+
+    toStack t = dropWhile null t
+
 
 -- Continuation passing style
 
@@ -49,7 +51,7 @@ treeWalkC' = loop id
     loop cont (Node v []) = cont [v]
     loop cont (Node v (c:cs)) =
       let conts = foldl (\comp n ->
-                          \r' -> loop (comp . (r' ++)) n)
+                          \r -> loop (comp . (r ++)) n)
                         (cont . (v :)) cs
       in loop conts c
 
