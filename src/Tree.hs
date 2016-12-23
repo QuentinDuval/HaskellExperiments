@@ -1,5 +1,7 @@
 module Tree where
 
+import Control.Monad.Cont
+
 
 -- Tree traversals
 
@@ -47,13 +49,26 @@ treeWalkC (Tree root) = treeWalkC' root
 treeWalkC' :: Node a -> [a]
 treeWalkC' = loop id
   where
-    -- TODO: use Cont monad with mapM?
     loop cont (Node v []) = cont [v]
     loop cont (Node v (c:cs)) =
-      let conts = foldl (\comp n ->
-                          \r -> loop (comp . (r ++)) n)
-                        (cont . (v :)) cs
+      let conts = foldl (\comp n r -> loop (comp . (r ++)) n)
+                        (cont . (v :))
+                        cs
       in loop conts c
+
+
+-- With continuation Monad
+
+treeWalkM :: Tree a -> [a]
+treeWalkM EmptyTree = []
+treeWalkM (Tree root) = treeWalkM' root
+
+treeWalkM' :: Node a -> [a]
+treeWalkM' n = runCont (loop n) id
+  where
+    loop (Node v cs) = do
+      rs <- mapM loop cs
+      return (v : concat rs)
 
 
 --
@@ -66,5 +81,6 @@ testDfs = do
   print $ treeWalkR t
   print $ treeWalkH t
   print $ treeWalkC t
+  print $ treeWalkM t
 
 --
