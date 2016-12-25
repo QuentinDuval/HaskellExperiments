@@ -15,11 +15,11 @@ foldMergeSort :: (Ord a) => [a] -> [a]
 foldMergeSort =
   foldl1 (flip merge) . map snd . foldl addToCounter []
   where
-    addToCounter counter x = combine ((1::Int,[x]) : counter)
-    combine [] = []
-    combine [x] = [x]
-    combine counter@(x:y:xs) -- x arrived last => combine on right
-      | fst x == fst y = combine ((fst x + fst y, merge (snd y) (snd x)) : xs)
+    addToCounter counter x = propagate ((1::Int,[x]) : counter)
+    propagate [] = []
+    propagate [x] = [x]
+    propagate counter@(x:y:xs) -- x arrived last => combine on right
+      | fst x == fst y = propagate ((fst x + fst y, merge (snd y) (snd x)) : xs)
       | otherwise      = counter
 
 
@@ -29,11 +29,11 @@ foldMonoidTree :: (Monoid a) => [a] -> a
 foldMonoidTree =
   foldl1 (flip (<>)) . map snd . foldl addToCounter []
   where
-    addToCounter counter x = combine ((1::Int,x) : counter)
-    combine [] = []
-    combine [x] = [x]
-    combine counter@(x:y:xs) -- x arrived last => combine on right
-      | fst x == fst y = combine ((fst x + fst y, snd y <> snd x) : xs)
+    addToCounter counter x = propagate ((1::Int,x) : counter)
+    propagate [] = []
+    propagate [x] = [x]
+    propagate counter@(x:y:xs) -- x arrived last => combine on right
+      | fst x == fst y = propagate ((fst x + fst y, snd y <> snd x) : xs)
       | otherwise      = counter
 
 foldMergeSort' :: (Ord a) => [a] -> [a]
