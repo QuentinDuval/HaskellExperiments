@@ -7,6 +7,7 @@ import Lib
 import qualified RMQ
 import RMQ(Range(..))
 import qualified RMQ2
+import qualified Tree
 
 
 -- Run with:
@@ -16,7 +17,22 @@ main :: IO ()
 main = do
   someFunc
   testRMQ
-  defaultMain [testRMQPerf]
+  defaultMain [
+      testTreePerf
+    -- , testRMQPerf
+    ]
+
+
+testTreePerf :: Benchmark
+testTreePerf =
+  let n = 1000 :: Int
+      input = Tree.Tree $ Tree.Node 0 $ map Tree.generateNode [1,6..n]
+  in bgroup "Tree" [
+      bench "Naive" $ nf Tree.treeWalkR input,
+      bench "Heap" $ nf Tree.treeWalkH input,
+      bench "CPS" $ nf Tree.treeWalkC input,
+      bench "Cont" $ nf Tree.treeWalkM input
+     ]
 
 
 testRMQPerf :: Benchmark

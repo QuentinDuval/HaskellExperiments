@@ -36,7 +36,6 @@ treeWalkH' = reverse . loop [] []
     loop out []     (Node v [])     = v:out -- End of traversal
     loop out stack  (Node v (c:cs)) = loop (v:out) (toStack (cs:stack)) c
     loop out (h:t)  (Node v [])     = loop (v:out) (toStack (tail h:t)) (head h)
-
     toStack t = dropWhile null t
 
 
