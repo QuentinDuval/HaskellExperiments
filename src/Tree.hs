@@ -57,6 +57,22 @@ treeWalkC' = loop id
       in conts [v]
 -}
 
+treeWalkC' :: Node a -> [a]
+treeWalkC' n = loop n id
+  where
+    loop :: Node a -> ([a] -> [a]) -> [a]
+    loop (Node v cs) cont =
+      loopChildren cs $
+        \res -> cont (v : res)
+
+    loopChildren :: [Node a] -> ([a] -> [a]) -> [a]
+    loopChildren [] cont = cont []
+    loopChildren (c:cs) cont =
+      loopChildren cs $
+        \res -> cont (loop c id ++ res)
+
+
+{-
 data CPS r a = CPS { runCPS :: (a -> r) -> r }
 
 instance Functor (CPS r) where
@@ -76,15 +92,13 @@ instance Monad (CPS r) where
 
 
 treeWalkC' :: Node a -> [a]
-treeWalkC' n = loop n id
+treeWalkC' n = runCPS (loop n) id
   where
-    loop :: Node a -> ([a] -> [a]) -> [a]
-    loop (Node v cs) cont =
-      let conts = foldr (\n comp r -> loop n (comp . (r ++)))
-                        cont
-                        cs
-      in conts [v]
-
+    loop :: Node a -> CPS [a] [a]
+    loop (Node v cs) = do
+      rs <- mapM loop cs
+      CPS $ \cont -> cont (v : concat rs)
+-}
 
 -- With continuation Monad
 

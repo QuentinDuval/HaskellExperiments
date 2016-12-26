@@ -26,12 +26,12 @@ main = do
 testTreePerf :: Benchmark
 testTreePerf =
   let n = 1000 :: Int
-      input = Tree.Tree $ Tree.Node 0 $ map Tree.generateNode [1,6..n]
+      t = Tree.Tree $ Tree.Node 0 $ map Tree.generateNode [1,6..n]
   in bgroup "Tree" [
-      bench "Naive" $ nf Tree.treeWalkR input,
-      bench "Heap" $ nf Tree.treeWalkH input,
-      bench "CPS" $ nf Tree.treeWalkC input,
-      bench "Cont" $ nf Tree.treeWalkM input
+      bench "Naive" $ nf Tree.treeWalkR t,
+      bench "Heap" $ nf Tree.treeWalkH t,
+      bench "CPS" $ nf Tree.treeWalkC t,
+      bench "Cont" $ nf Tree.treeWalkM t
      ]
 
 
