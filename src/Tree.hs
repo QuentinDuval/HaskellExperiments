@@ -66,7 +66,7 @@ treeWalkC' n = loop n id
     loopChildren :: [Node a] -> ([a] -> [a]) -> [a]
     loopChildren [] cont = cont []
     loopChildren (c:cs) cont =
-      loop c $ \res -> loopChildren cs (cont . (res ++)) -- TODO: quadratic behavior
+      loop c $ \res -> loopChildren cs (cont . (res ++)) -- TODO: quadratic behavior (in terms of depth)
 
 
 {-
@@ -109,7 +109,7 @@ treeWalkM' n = runCont (loop n) id
     loop :: Node a -> Cont [a] [a]
     loop (Node v cs) = do
       rs <- mapM loop cs
-      return (v : concat rs) -- TODO: quadratic behavior
+      return (v : concat rs) -- TODO: quadratic behavior (in terms of depth)
 
 
 --
