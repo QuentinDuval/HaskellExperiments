@@ -21,8 +21,13 @@ treeWalkR :: Tree a -> [a]
 treeWalkR EmptyTree = []
 treeWalkR (Tree root) = treeWalkR' root
 
+-- treeWalkR' :: Node a -> [a]
+-- treeWalkR' (Node v children) = v : concatMap treeWalkR' children
+
 treeWalkR' :: Node a -> [a]
-treeWalkR' (Node v children) = v : concatMap treeWalkR' children
+treeWalkR' = loop []
+  where
+    loop out (Node v cs) = v : foldr (\c res -> loop res c) out cs
 
 -- Heap-based stack DFS
 
