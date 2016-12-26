@@ -61,15 +61,13 @@ treeWalkC' :: Node a -> [a]
 treeWalkC' n = loop n id
   where
     loop :: Node a -> ([a] -> [a]) -> [a]
-    loop (Node v cs) cont =
-      loopChildren cs $
-        \res -> cont (v : res)
+    loop (Node v cs) cont = loopChildren cs (cont . (v:))
 
     loopChildren :: [Node a] -> ([a] -> [a]) -> [a]
     loopChildren [] cont = cont []
     loopChildren (c:cs) cont =
       loopChildren cs $
-        \res -> cont (loop c id ++ res)
+        \res -> cont (loop c id ++ res) -- Recursion...
 
 
 {-
@@ -120,6 +118,10 @@ treeWalkM' n = runCont (loop n) id
 generateNode :: Int -> Node Int
 generateNode n =
   Node n [Node (n+1) [Node (n+2) []], Node (n+3) [Node (n+4) []]]
+
+generateDepth :: Int -> Node Int
+generateDepth 1 = Node 1 []
+generateDepth n = Node n [generateDepth (n - 1)]
 
 testDfs :: IO ()
 testDfs = do

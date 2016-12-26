@@ -27,11 +27,20 @@ testTreePerf :: Benchmark
 testTreePerf =
   let n = 1000 :: Int
       t = Tree.Tree $ Tree.Node 0 $ map Tree.generateNode [1,6..n]
+      d = Tree.Tree $ Tree.generateDepth n
   in bgroup "Tree" [
-      bench "Naive" $ nf Tree.treeWalkR t,
-      bench "Heap" $ nf Tree.treeWalkH t,
-      bench "CPS" $ nf Tree.treeWalkC t,
-      bench "Cont" $ nf Tree.treeWalkM t
+      bgroup "Flat" [
+        bench "Naive" $ nf Tree.treeWalkR t,
+        bench "Heap" $ nf Tree.treeWalkH t,
+        bench "CPS" $ nf Tree.treeWalkC t,
+        bench "Cont" $ nf Tree.treeWalkM t
+      ],
+      bgroup "Deep" [
+        bench "Naive" $ nf Tree.treeWalkR d,
+        bench "Heap" $ nf Tree.treeWalkH d,
+        bench "CPS" $ nf Tree.treeWalkC d,
+        bench "Cont" $ nf Tree.treeWalkM d
+      ]
      ]
 
 
