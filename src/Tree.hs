@@ -49,12 +49,12 @@ treeWalkC (Tree root) = treeWalkC' root
 treeWalkC' :: Node a -> [a]
 treeWalkC' = loop id
   where
-    loop cont (Node v []) = cont [v]
-    loop cont (Node v (c:cs)) =
-      let conts = foldl (\comp n r -> loop (comp . (r ++)) n)
-                        (cont . (v :))
+    loop :: ([a] -> [a]) -> Node a -> [a]
+    loop cont (Node v cs) =
+      let conts = foldr (\n comp r -> loop (comp . (r ++)) n)
+                        cont
                         cs
-      in loop conts c
+      in conts [v]
 
 
 -- With continuation Monad
@@ -66,6 +66,7 @@ treeWalkM (Tree root) = treeWalkM' root
 treeWalkM' :: Node a -> [a]
 treeWalkM' n = runCont (loop n) id
   where
+    loop :: Node a -> Cont [a] [a]
     loop (Node v cs) = do
       rs <- mapM loop cs
       return (v : concat rs)
@@ -73,10 +74,14 @@ treeWalkM' n = runCont (loop n) id
 
 --
 
+generateNode :: Int -> Node Int
+generateNode n =
+  Node n [Node (n+1) [Node (n+2) []], Node (n+3) [Node (n+4) []]]
+
 testDfs :: IO ()
 testDfs = do
-  let ns = replicate 100 $ Node 1 [Node 2 [], Node 3 [Node 4 []]]
-  let t = Tree $ Node 1 ns
+  let ns = map generateNode [1,6..60]
+  let t = Tree $ Node 0 ns
 
   print $ treeWalkR t
   print $ treeWalkH t
