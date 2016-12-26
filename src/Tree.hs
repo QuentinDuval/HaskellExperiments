@@ -45,12 +45,42 @@ treeWalkC :: Tree a -> [a]
 treeWalkC EmptyTree = []
 treeWalkC (Tree root) = treeWalkC' root
 
+{-
 treeWalkC' :: Node a -> [a]
 treeWalkC' = loop id
   where
     loop :: ([a] -> [a]) -> Node a -> [a]
     loop cont (Node v cs) =
       let conts = foldr (\n comp r -> loop (comp . (r ++)) n)
+                        cont
+                        cs
+      in conts [v]
+-}
+
+data CPS r a = CPS { runCPS :: (a -> r) -> r }
+
+instance Functor (CPS r) where
+  -- fmap :: (a -> b) -> CPS r a -> CPS r b
+  fmap f (CPS g) = CPS $ \cbr -> g (cbr . f)
+
+instance Applicative (CPS r) where
+  pure a = CPS $ \c -> c a
+  -- (<*>) :: CPS r (a -> b) -> CPS r a -> CPS r b
+  (CPS f) <*> (CPS a) =
+    CPS $ \cbr -> f (\cab -> a (cbr . cab))
+
+instance Monad (CPS r) where
+  -- (>>=) :: CPS r a -> (a -> CPS r b) -> CPS r b
+  (CPS car) >>= f =
+    CPS $ \cbr -> car (\a -> runCPS (f a) cbr)
+
+
+treeWalkC' :: Node a -> [a]
+treeWalkC' n = loop n id
+  where
+    loop :: Node a -> ([a] -> [a]) -> [a]
+    loop (Node v cs) cont =
+      let conts = foldr (\n comp r -> loop n (comp . (r ++)))
                         cont
                         cs
       in conts [v]
