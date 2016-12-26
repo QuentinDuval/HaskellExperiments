@@ -61,13 +61,13 @@ data CPS r a = CPS { runCPS :: (a -> r) -> r }
 
 instance Functor (CPS r) where
   -- fmap :: (a -> b) -> CPS r a -> CPS r b
-  fmap f (CPS g) = CPS $ \cbr -> g (cbr . f)
+  fmap f (CPS car) = CPS $ \cbr -> car (cbr . f)
 
 instance Applicative (CPS r) where
   pure a = CPS $ \c -> c a
   -- (<*>) :: CPS r (a -> b) -> CPS r a -> CPS r b
-  (CPS f) <*> (CPS a) =
-    CPS $ \cbr -> f (\cab -> a (cbr . cab))
+  (CPS f) <*> (CPS car) =
+    CPS $ \cbr -> f (\cab -> car (cbr . cab))
 
 instance Monad (CPS r) where
   -- (>>=) :: CPS r a -> (a -> CPS r b) -> CPS r b
