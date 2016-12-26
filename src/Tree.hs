@@ -66,8 +66,7 @@ treeWalkC' n = loop n id
     loopChildren :: [Node a] -> ([a] -> [a]) -> [a]
     loopChildren [] cont = cont []
     loopChildren (c:cs) cont =
-      loopChildren cs $
-        \res -> cont (loop c id ++ res) -- Recursion...
+      loop c $ \res -> loopChildren cs (cont . (res ++))
 
 
 {-
