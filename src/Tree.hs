@@ -109,7 +109,7 @@ treeWalkM' n = runCont (loop n) id
   where
     loop :: Node a -> Cont [a] [a]
     loop (Node v cs) = do
-      rs <- mapM loop cs
+      rs <- mapM loop cs -- Recursion here too?
       return (v : concat rs)
 
 
