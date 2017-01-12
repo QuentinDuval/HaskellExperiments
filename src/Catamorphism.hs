@@ -34,7 +34,7 @@ var = Fix . Var
 add = Fix . Add
 mul = Fix . Mul
 
--- Interpreters
+-- Catamorphism
 
 cata :: (Functor f) => (f a -> a) -> Fix f -> a
 cata algebra =
@@ -43,6 +43,11 @@ cata algebra =
   fmap (cata algebra) -- Apply the cata to the (Fix f)
   .
   unFix               -- Unwraps to get a f (Fix f)
+
+comp f g = f . unFix . g
+comps fs = undefined -- TODO
+
+-- Interpreters
 
 eval :: Env -> Expr -> Int
 eval env = cata alg where
@@ -80,12 +85,23 @@ optMul (Mul xs)
         ys -> mul ys
 optMul e = Fix e
 
--- TODO: Add fix that provides a variable
-
 -- Optimizer
 
 optimize :: Expr -> Expr
-optimize = cata (optMul . unFix . optAdd)
+optimize = cata (optMul `comp` optAdd)
+
+-- Fixings
+
+fixVar :: Env -> ExprR Expr -> Expr
+fixVar env = go where
+  go e@(Var v) =
+    case Map.lookup v env of
+      Just val -> cst val
+      Nothing -> Fix e
+  go e = Fix e
+
+fixing :: Env -> Expr -> Expr
+fixing env = cata (optMul `comp` optAdd `comp` fixVar env)
 
 -- Tests
 
@@ -97,8 +113,10 @@ testExpr = do
               , mul [cst 0, add [var "x", cst 1]]
               , var "x" ]
   let o = optimize e
+  let f = fixing (Map.fromList [("y", 0)]) e
   print $ prn e
   print $ prn o
+  print $ prn f
   print $ eval env e
   print $ eval env o
   print $ "(+ 1 (+ 2 y) x)" == prn o
