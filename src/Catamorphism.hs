@@ -4,6 +4,7 @@ module Catamorphism (
 
 ) where
 
+import Data.List(partition)
 import qualified Data.Map as Map
 
 -- All in Data.Fix
@@ -33,6 +34,9 @@ cst = Fix . Cst
 var = Fix . Var
 add = Fix . Add
 mul = Fix . Mul
+
+isCst (Fix (Cst _)) = True
+isCst _ = False
 
 -- Catamorphism
 
@@ -69,10 +73,12 @@ prn = cata alg where
 
 optAdd :: ExprR Expr -> Expr
 optAdd (Add xs) =
-  case filter (/= cst 0) xs of
-      [] -> cst 0
-      [y] -> y
-      ys -> add ys
+  let (constants, vars) = partition isCst xs
+      sumCst = sum $ map (\(Fix (Cst x)) -> x) constants
+  in case vars of
+      []  -> cst sumCst
+      [y] | sumCst == 0 -> y
+      ys -> add (cst sumCst : ys)
 optAdd e = Fix e
 
 optMul :: ExprR Expr -> Expr
