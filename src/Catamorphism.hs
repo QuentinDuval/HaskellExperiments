@@ -4,8 +4,9 @@ module Catamorphism (
 
 ) where
 
-import Data.List(partition)
+import Data.List
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 
 -- All in Data.Fix
 
@@ -109,6 +110,24 @@ fixVar env = go where
 fixing :: Env -> Expr -> Expr
 fixing env = cata (optMul `comp` optAdd `comp` fixVar env)
 
+-- Collector of variables
+
+dependencies :: Expr -> Set.Set Id
+dependencies = cata alg where
+  alg :: ExprR (Set.Set Id) -> Set.Set Id
+  alg (Cst _) = Set.empty
+  alg (Var x) = Set.singleton x
+  alg (Add xs) = foldl1' Set.union xs
+  alg (Mul xs) = foldl1' Set.union xs
+
+-- Eval 2.0 (based on the fixing)
+
+eval' :: Env -> Expr -> Int
+eval' env expr =
+  case fixing env expr of
+    (Fix (Cst n)) -> n
+    e -> error $ "Missing vars: " ++ show (dependencies e)
+
 -- Tests
 
 testExpr :: IO ()
@@ -123,8 +142,12 @@ testExpr = do
   print $ prn e
   print $ prn o
   print $ prn f
+  print $ dependencies o
+  print $ dependencies f
   print $ eval env e
   print $ eval env o
+  print $ eval' env e
+  print $ eval' env o
   print $ "(+ 1 (+ 2 y) x)" == prn o
 
 --
