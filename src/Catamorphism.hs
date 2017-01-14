@@ -12,12 +12,12 @@ import qualified Data.Set as Set
 
 type Id = String
 type Env = Map.Map String Int
+data OpType = Add | Mul deriving (Show, Eq, Ord)
 
 data ExprR r
   = Cst Int
   | Var Id
-  | Add [r]
-  | Mul [r]
+  | Op OpType [r]
   deriving (
     Show, Eq, Ord,
     Functor, Foldable,
@@ -33,8 +33,8 @@ instance Eq (f (Fix f)) => Eq (Fix f) where
 
 cst = Fix . Cst
 var = Fix . Var
-add = Fix . Add
-mul = Fix . Mul
+add = Fix . Op Add
+mul = Fix . Op Mul
 
 isCst (Fix (Cst _)) = True
 isCst _ = False
@@ -59,21 +59,21 @@ eval env = cata alg where
   alg :: ExprR Int -> Int
   alg (Cst n) = n
   alg (Var x) = env Map.! x
-  alg (Add xs) = sum xs
-  alg (Mul xs) = product xs
+  alg (Op Add xs) = sum xs
+  alg (Op Mul xs) = product xs
 
 prn :: Expr -> String
 prn = cata alg where
   alg :: ExprR String -> String
   alg (Cst n) = show n
   alg (Var x) = x
-  alg (Add xs) = "(+ " ++ unwords xs ++ ")"
-  alg (Mul xs) = "(* " ++ unwords xs ++ ")"
+  alg (Op Add xs) = "(+ " ++ unwords xs ++ ")"
+  alg (Op Mul xs) = "(* " ++ unwords xs ++ ")"
 
 -- Optimizers (to combine)
 
 optAdd :: ExprR Expr -> Expr
-optAdd (Add xs) =
+optAdd (Op Add xs) =
   let (constants, vars) = partition isCst xs
       sumCst = sum $ map (\(Fix (Cst x)) -> x) constants
   in case vars of
@@ -83,7 +83,7 @@ optAdd (Add xs) =
 optAdd e = Fix e
 
 optMul :: ExprR Expr -> Expr
-optMul (Mul xs)
+optMul (Op Mul xs)
   | not (null (dropWhile (/= cst 0) xs)) = cst 0
   | otherwise
     = case filter (/= cst 1) xs of
@@ -117,8 +117,7 @@ dependencies = cata alg where
   alg :: ExprR (Set.Set Id) -> Set.Set Id
   alg (Cst _) = Set.empty
   alg (Var x) = Set.singleton x
-  alg (Add xs) = foldl1' Set.union xs
-  alg (Mul xs) = foldl1' Set.union xs
+  alg (Op _ xs) = foldl1' Set.union xs
 
 -- Eval 2.0 (based on the fixing)
 
