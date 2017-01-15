@@ -41,16 +41,18 @@ cata ExprSem{..} = alg
 comp :: ExprSem Expr -> ExprSem Expr -> ExprSem Expr
 comp a b =
   ExprSem {
-    onCst = apply . onCst b
-  , onVar = apply . onVar b
-  , onAdd = apply . onAdd b
-  , onMul = apply . onMul b
+    onCst = visit a . onCst b
+  , onVar = visit a . onVar b
+  , onAdd = visit a . onAdd b
+  , onMul = visit a . onMul b
   }
   where
-    apply (Cst n) = onCst a n
-    apply (Var v) = onVar a v
-    apply (Op Add xs) = onAdd a xs
-    apply (Op Mul xs) = onMul a xs
+    visit :: ExprSem Expr -> Expr -> Expr
+    visit alg (Cst n) = onCst alg n
+    visit alg (Var v) = onVar alg v
+    visit alg (Op Add xs) = onAdd alg xs
+    visit alg (Op Mul xs) = onMul alg xs
+
 
 -- Smart constructors
 
