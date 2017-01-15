@@ -97,18 +97,18 @@ optMul e = Fix e
 optimize :: Expr -> Expr
 optimize = cata (optMul `comp` optAdd)
 
--- Fixings
+-- Partial evals
 
-fixVar :: Env -> ExprR Expr -> Expr
-fixVar env = go where
+replaceVar :: Env -> ExprR Expr -> Expr
+replaceVar env = go where
   go e@(Var v) =
     case Map.lookup v env of
       Just val -> cst val
       Nothing -> Fix e
   go e = Fix e
 
-fixing :: Env -> Expr -> Expr
-fixing env = cata (optMul `comp` optAdd `comp` fixVar env)
+partial :: Env -> Expr -> Expr
+partial env = cata (optMul `comp` optAdd `comp` replaceVar env)
 
 -- Collector of variables
 
@@ -123,7 +123,7 @@ dependencies = cata alg where
 
 eval' :: Env -> Expr -> Int
 eval' env expr =
-  case fixing env expr of
+  case partial env expr of
     (Fix (Cst n)) -> n
     e -> error $ "Missing vars: " ++ show (dependencies e)
 
@@ -132,12 +132,14 @@ eval' env expr =
 testExpr :: IO ()
 testExpr = do
   let env = Map.fromList [("x", 1), ("y", 2)]
-  let e = add [ add [cst 1, cst 0, cst 0]
-              , mul [cst 1, add [cst 2, var "y"]]
-              , mul [cst 0, add [var "x", cst 1]]
-              , var "x" ]
+  let e = add [ cst(1)
+              , cst(2)
+              , mul [cst(0), var("x"), var("y")]
+              , mul [cst(1), var("y"), cst(2)]
+              , add [cst(0), var("x") ]
+              ]
   let o = optimize e
-  let f = fixing (Map.fromList [("y", 0)]) e
+  let f = partial (Map.fromList [("y", 0)]) e
   print $ prn e
   print $ prn o
   print $ prn f
@@ -147,6 +149,6 @@ testExpr = do
   print $ eval env o
   print $ eval' env e
   print $ eval' env o
-  print $ "(+ 1 (+ 2 y) x)" == prn o
+  print $ "(+ 3 (* 2 y) x)" == prn o
 
 --
