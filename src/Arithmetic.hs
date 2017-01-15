@@ -98,7 +98,9 @@ testExpr = do
               , add [cst(0), var("x") ]
               ]
   let o = optimize e
-  let f = optimize $ partial (Map.fromList [("y", 0)]) e -- Double tree traversal... more if you want to split up! Less incentive to do it.
+  -- Double tree traversal... more if you want to split up! Less incentive to do it due to performance hit.
+  -- It is also pretty hard to test! You have to have the full tree!
+  let f = optimize $ partial (Map.fromList [("y", 0)]) e
   print $ prn e
   print $ prn o
   print $ prn f
