@@ -46,9 +46,15 @@ optimize :: Expr -> Expr
 optimize e = e
 
 partial :: Env -> Expr -> Expr
+partial env e@(Var v) =
+  case Map.lookup v env of
+    Nothing -> e
+    Just n -> cst n
 partial env e = e
 
 dependencies :: Expr -> Set.Set Id
+dependencies (Var v) = Set.singleton v
+dependencies (Op _ xs) = foldl1' Set.union (map dependencies xs)
 dependencies e = Set.empty
 
 
