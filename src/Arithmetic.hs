@@ -42,14 +42,36 @@ prn (Var v) = v
 prn (Op Add xs) = "(+ " ++ unwords (map prn xs) ++ ")"
 prn (Op Mul xs) = "(* " ++ unwords (map prn xs) ++ ")"
 
+
+-- Optimization
+
 optimize :: Expr -> Expr
+optimize op@(Op Add ys) = optOp Add (map optimize ys) 0 (+)
+optimize op@(Op Mul ys)
+  | not (null (dropWhile (/= cst 0) xs)) = cst 0
+  | otherwise = optOp Mul xs 1 (*)
+  where xs = map optimize ys
 optimize e = e
+
+optOp :: OpType -> [Expr] -> Int -> (Int -> Int -> Int) -> Expr
+optOp opType xs neutral combine =
+  let (constants, vars) = partition isCst xs
+      constantsVal = map (\(Cst x) -> x) constants
+      sumCst = foldl' combine neutral constantsVal
+  in case vars of
+      [] -> cst sumCst
+      [y] | sumCst == neutral -> y
+      ys -> Op opType (cst sumCst : ys)
+
+
+-- Partial evals and dependencies
 
 partial :: Env -> Expr -> Expr
 partial env e@(Var v) =
   case Map.lookup v env of
     Nothing -> e
     Just n -> cst n
+partial env (Op opType xs) = Op opType (map (partial env) xs)
 partial env e = e
 
 dependencies :: Expr -> Set.Set Id
@@ -76,7 +98,7 @@ testExpr = do
               , add [cst(0), var("x") ]
               ]
   let o = optimize e
-  let f = partial (Map.fromList [("y", 0)]) e
+  let f = optimize $ partial (Map.fromList [("y", 0)]) e
   print $ prn e
   print $ prn o
   print $ prn f
