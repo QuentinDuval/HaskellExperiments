@@ -37,6 +37,8 @@ cata ExprSem{..} = alg
     alg (Op Add xs) = onAdd (map alg xs)
     alg (Op Mul xs) = onMul (map alg xs)
 
+emptyAlg :: ExprSem Expr
+emptyAlg = (ExprSem cst var add mul)
 
 comp :: ExprSem Expr -> ExprSem Expr -> ExprSem Expr
 comp a b =
@@ -84,10 +86,8 @@ prn = cata $ ExprSem {
 
 optimize_cata :: ExprSem Expr
 optimize_cata =
-  ExprSem {
-    onCst = cst
-  , onVar = var
-  , onAdd = \xs -> optOp Add xs 0 (+)
+  emptyAlg {
+    onAdd = \xs -> optOp Add xs 0 (+)
   , onMul = \xs -> if not (null (dropWhile (/= cst 0) xs))
                       then cst 0
                       else optOp Mul xs 1 (*)
@@ -111,13 +111,10 @@ optimize = cata optimize_cata
 
 partial_cata :: Env -> ExprSem Expr
 partial_cata env =
-  ExprSem {
-    onCst = cst
-  , onVar = \v -> case Map.lookup v env of
+  emptyAlg {
+    onVar = \v -> case Map.lookup v env of
                     Nothing -> var v
                     Just nb -> cst nb
-  , onAdd = add
-  , onMul = mul
   }
 
 partial :: Env -> Expr -> Expr
