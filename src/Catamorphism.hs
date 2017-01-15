@@ -50,7 +50,7 @@ cata algebra =
   unFix               -- Unwraps to get a f (Fix f)
 
 comp f g = f . unFix . g
-comps fs = undefined -- TODO
+compAll fs = foldr1 comp fs
 
 -- Interpreters
 
@@ -108,7 +108,7 @@ replaceVar env = go where
   go e = Fix e
 
 partial :: Env -> Expr -> Expr
-partial env = cata (optMul `comp` optAdd `comp` replaceVar env)
+partial env = cata (compAll [optMul, optAdd, replaceVar env])
 
 -- Collector of variables
 
