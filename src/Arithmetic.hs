@@ -80,10 +80,13 @@ dependencies (Op _ xs) = foldl1' Set.union (map dependencies xs)
 dependencies e = Set.empty
 
 
--- Evaluation (natural fold)
+-- Evaluation (alternate impl)
 
 eval' :: Env -> Expr -> Int
-eval' env e = eval env e
+eval' env e =
+  case optimize (partial env e) of
+    Cst n -> n
+    e -> error $ "Missing vars: " ++ show (dependencies e)
 
 
 -- Tests
