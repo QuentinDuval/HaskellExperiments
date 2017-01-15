@@ -49,14 +49,20 @@ cata algebra =
   .
   unFix               -- Unwraps to get a f (Fix f)
 
+-- Composition
+
+type FixAlg f = f (Fix f) -> Fix f
+
+comp :: FixAlg f -> FixAlg f -> FixAlg f
 comp f g = f . unFix . g
+
+compAll :: Foldable t => t (FixAlg f) -> FixAlg f
 compAll fs = foldr1 comp fs
 
 -- Interpreters
 
 eval :: Env -> Expr -> Int
 eval env = cata alg where
-  alg :: ExprR Int -> Int
   alg (Cst n) = n
   alg (Var x) = env Map.! x
   alg (Op Add xs) = sum xs
@@ -64,7 +70,6 @@ eval env = cata alg where
 
 prn :: Expr -> String
 prn = cata alg where
-  alg :: ExprR String -> String
   alg (Cst n) = show n
   alg (Var x) = x
   alg (Op Add xs) = "(+ " ++ unwords xs ++ ")"
@@ -114,7 +119,6 @@ partial env = cata (compAll [optMul, optAdd, replaceVar env])
 
 dependencies :: Expr -> Set.Set Id
 dependencies = cata alg where
-  alg :: ExprR (Set.Set Id) -> Set.Set Id
   alg (Cst _) = Set.empty
   alg (Var x) = Set.singleton x
   alg (Op _ xs) = foldl1' Set.union xs
