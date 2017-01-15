@@ -71,7 +71,7 @@ partial env e@(Var v) =
   case Map.lookup v env of
     Nothing -> e
     Just n -> cst n
-partial env (Op opType xs) = Op opType (map (partial env) xs)
+partial env (Op opType xs) = Op opType (map (partial env) xs) -- You have to care about recursion as well as transformations
 partial env e = e
 
 dependencies :: Expr -> Set.Set Id
@@ -98,7 +98,7 @@ testExpr = do
               , add [cst(0), var("x") ]
               ]
   let o = optimize e
-  let f = optimize $ partial (Map.fromList [("y", 0)]) e
+  let f = optimize $ partial (Map.fromList [("y", 0)]) e -- Double tree traversal... more if you want to split up! Less incentive to do it.
   print $ prn e
   print $ prn o
   print $ prn f
