@@ -21,28 +21,25 @@ data Expr
 
 -- Catamorphism
 
-data ExprSem domain
-  = ExprSem {
-        onCst :: Int -> domain
-      , onVar :: Id  -> domain
-      , onAdd :: [domain] -> domain
-      , onMul :: [domain] -> domain
-    }
+data ExprSem domain = ExprSem {
+      onCst :: Int -> domain
+    , onVar :: Id  -> domain
+    , onAdd :: [domain] -> domain
+    , onMul :: [domain] -> domain
+  }
 
 cata :: ExprSem domain -> Expr -> domain
-cata ExprSem{..} = alg
-  where
-    alg (Cst n)     = onCst n
-    alg (Var v)     = onVar v
-    alg (Op Add xs) = onAdd (map alg xs)
-    alg (Op Mul xs) = onMul (map alg xs)
+cata ExprSem{..} = alg where
+  alg (Cst n)     = onCst n
+  alg (Var v)     = onVar v
+  alg (Op Add xs) = onAdd (map alg xs)
+  alg (Op Mul xs) = onMul (map alg xs)
 
 emptyAlg :: ExprSem Expr
 emptyAlg = (ExprSem cst var add mul)
 
 comp :: ExprSem Expr -> ExprSem Expr -> ExprSem Expr
-comp a b =
-  ExprSem {
+comp a b = ExprSem {
     onCst = visit a . onCst b
   , onVar = visit a . onVar b
   , onAdd = visit a . onAdd b
@@ -75,18 +72,17 @@ eval env = cata (ExprSem id readInEnv sum product)
 
 prn :: Expr -> String
 prn = cata $ ExprSem {
-                onCst = show
-              , onVar = id
-              , onAdd = \xs -> "(+ " ++ unwords xs ++ ")"
-              , onMul = \xs -> "(* " ++ unwords xs ++ ")"
-              }
+    onCst = show
+  , onVar = id
+  , onAdd = \xs -> "(+ " ++ unwords xs ++ ")"
+  , onMul = \xs -> "(* " ++ unwords xs ++ ")"
+  }
 
 
 -- Optimization
 
 optimize_cata :: ExprSem Expr
-optimize_cata =
-  emptyAlg {
+optimize_cata = emptyAlg {
     onAdd = \xs -> optOp Add xs 0 (+)
   , onMul = \xs -> if not (null (dropWhile (/= cst 0) xs))
                       then cst 0
@@ -110,8 +106,7 @@ optimize = cata optimize_cata
 -- Partial evals and dependencies
 
 partial_cata :: Env -> ExprSem Expr
-partial_cata env =
-  emptyAlg {
+partial_cata env = emptyAlg {
     onVar = \v -> case Map.lookup v env of
                     Nothing -> var v
                     Just nb -> cst nb
@@ -121,14 +116,12 @@ partial :: Env -> Expr -> Expr
 partial env = cata (optimize_cata `comp` partial_cata env)
 
 dependencies :: Expr -> Set.Set Id
-dependencies =
-  cata $
-    ExprSem {
-      onCst = const Set.empty
-    , onVar = Set.singleton
-    , onAdd = foldl1' Set.union
-    , onMul = foldl1' Set.union
-    }
+dependencies = cata $ ExprSem {
+    onCst = const Set.empty
+  , onVar = Set.singleton
+  , onAdd = foldl1' Set.union
+  , onMul = foldl1' Set.union
+  }
 
 
 -- Evaluation (alternate impl)
