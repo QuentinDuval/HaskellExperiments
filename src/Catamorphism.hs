@@ -72,24 +72,24 @@ prn = cata alg where
 
 -- Optimizers (to combine)
 
-optAdd :: ExprR Expr -> Expr
-optAdd (Op Add xs) =
+optOp :: ExprR Expr -> Int -> (Int -> Int -> Int) -> Expr
+optOp (Op optType xs) neutral combine =
   let (constants, vars) = partition isCst xs
-      sumCst = sum $ map (\(Fix (Cst x)) -> x) constants
+      constantsVal = map (\(Fix (Cst x)) -> x) constants
+      sumCst = foldl' combine neutral constantsVal
   in case vars of
-      []  -> cst sumCst
-      [y] | sumCst == 0 -> y
-      ys -> add (cst sumCst : ys)
+      [] -> cst sumCst
+      [y] | sumCst == neutral -> y
+      ys -> Fix $ Op optType (cst sumCst : ys)
+
+optAdd :: ExprR Expr -> Expr
+optAdd op@(Op Add _) = optOp op 0 (+)
 optAdd e = Fix e
 
 optMul :: ExprR Expr -> Expr
-optMul (Op Mul xs)
+optMul op@(Op Mul xs)
   | not (null (dropWhile (/= cst 0) xs)) = cst 0
-  | otherwise
-    = case filter (/= cst 1) xs of
-        [] -> cst 0
-        [y] -> y
-        ys -> mul ys
+  | otherwise = optOp op 1 (*)
 optMul e = Fix e
 
 -- Optimizer
