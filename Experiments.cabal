@@ -50,4 +50,4 @@ test-suite Experiments-test
 
 source-repository head
   type:     git
-  location: https://github.com/githubuser/Experiments
+  location: https://github.com/QuentinDuval/HaskellExperiments
