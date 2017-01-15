@@ -2,12 +2,12 @@ name:                Experiments
 version:             0.1.0.0
 synopsis:            Initial project template from stack
 description:         Please see README.md
-homepage:            https://github.com/githubuser/Experiments#readme
+homepage:            https://github.com/QuentinDuval/HaskellExperiments#readme
 license:             BSD3
 license-file:        LICENSE
-author:              Author name here
+author:              Quentin Duval
 maintainer:          example@example.com
-copyright:           2016 Author name here
+copyright:           2016 Quentin Duval
 category:            Web
 build-type:          Simple
 extra-source-files:  README.md
