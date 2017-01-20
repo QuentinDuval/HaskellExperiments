@@ -106,8 +106,8 @@ optimize = cata (optimizeMul `comp` optimizeAdd)
 
 -- Partial evals
 
-replaceVar :: Env -> ExprR Expr -> Expr
-replaceVar env = go where
+replaceKnownVars :: Env -> ExprR Expr -> Expr
+replaceKnownVars env = go where
   go e@(Var v) =
     case Map.lookup v env of
       Just val -> cst val
@@ -115,7 +115,7 @@ replaceVar env = go where
   go e = Fix e
 
 partial :: Env -> Expr -> Expr
-partial env = cata (compAll [optimizeMul, optimizeAdd, replaceVar env])
+partial env = cata (compAll [optimizeMul, optimizeAdd, replaceKnownVars env])
 
 -- Collector of variables
 
