@@ -79,8 +79,8 @@ prn = cata algebra where
 
 -- Optimizers (to combine)
 
-optOp :: ExprR Expr -> Int -> (Int -> Int -> Int) -> Expr
-optOp (Op optType xs) neutral combine =
+optimizeOp :: ExprR Expr -> Int -> (Int -> Int -> Int) -> Expr
+optimizeOp (Op optType xs) neutral combine =
   let (constants, vars) = partition isCst xs
       constantsVal = map (\(Fix (Cst x)) -> x) constants
       sumCst = foldl' combine neutral constantsVal
@@ -89,20 +89,20 @@ optOp (Op optType xs) neutral combine =
       [y] | sumCst == neutral -> y
       ys -> Fix $ Op optType (cst sumCst : ys)
 
-optAdd :: ExprR Expr -> Expr
-optAdd op@(Op Add _) = optOp op 0 (+)
-optAdd e = Fix e
+optimizeAdd :: ExprR Expr -> Expr
+optimizeAdd op@(Op Add _) = optimizeOp op 0 (+)
+optimizeAdd e = Fix e
 
-optMul :: ExprR Expr -> Expr
-optMul op@(Op Mul xs)
+optimizeMul :: ExprR Expr -> Expr
+optimizeMul op@(Op Mul xs)
   | not (null (dropWhile (/= cst 0) xs)) = cst 0
-  | otherwise = optOp op 1 (*)
-optMul e = Fix e
+  | otherwise = optimizeOp op 1 (*)
+optimizeMul e = Fix e
 
 -- Optimizer
 
 optimize :: Expr -> Expr
-optimize = cata (optMul `comp` optAdd)
+optimize = cata (optimizeMul `comp` optimizeAdd)
 
 -- Partial evals
 
@@ -115,7 +115,7 @@ replaceVar env = go where
   go e = Fix e
 
 partial :: Env -> Expr -> Expr
-partial env = cata (compAll [optMul, optAdd, replaceVar env])
+partial env = cata (compAll [optimizeMul, optimizeAdd, replaceVar env])
 
 -- Collector of variables
 
