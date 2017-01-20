@@ -53,12 +53,12 @@ cata algebra =
 
 -- Composition
 
-type FixAlg f = f (Fix f) -> Fix f
+type Algebra f = f (Fix f) -> Fix f
 
-comp :: FixAlg f -> FixAlg f -> FixAlg f
+comp :: Algebra f -> Algebra f -> Algebra f
 comp f g = f . unFix . g
 
-compAll :: Foldable t => t (FixAlg f) -> FixAlg f
+compAll :: Foldable t => t (Algebra f) -> Algebra f
 compAll fs = foldr1 comp fs
 
 -- Interpreters
