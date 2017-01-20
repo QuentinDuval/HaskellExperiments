@@ -64,18 +64,18 @@ compAll fs = foldr1 comp fs
 -- Interpreters
 
 eval :: Env -> Expr -> Int
-eval env = cata alg where
-  alg (Cst n) = n
-  alg (Var x) = env Map.! x
-  alg (Op Add xs) = sum xs
-  alg (Op Mul xs) = product xs
+eval env = cata algebra where
+  algebra (Cst n) = n
+  algebra (Var x) = env Map.! x
+  algebra (Op Add xs) = sum xs
+  algebra (Op Mul xs) = product xs
 
 prn :: Expr -> String
-prn = cata alg where
-  alg (Cst n) = show n
-  alg (Var x) = x
-  alg (Op Add xs) = "(+ " ++ unwords xs ++ ")"
-  alg (Op Mul xs) = "(* " ++ unwords xs ++ ")"
+prn = cata algebra where
+  algebra (Cst n) = show n
+  algebra (Var x) = x
+  algebra (Op Add xs) = "(+ " ++ unwords xs ++ ")"
+  algebra (Op Mul xs) = "(* " ++ unwords xs ++ ")"
 
 -- Optimizers (to combine)
 
@@ -120,10 +120,10 @@ partial env = cata (compAll [optMul, optAdd, replaceVar env])
 -- Collector of variables
 
 dependencies :: Expr -> Set.Set Id
-dependencies = cata alg where
-  alg (Cst _) = Set.empty
-  alg (Var x) = Set.singleton x
-  alg (Op _ xs) = foldl1' Set.union xs
+dependencies = cata algebra where
+  algebra (Cst _) = Set.empty
+  algebra (Var x) = Set.singleton x
+  algebra (Op _ xs) = foldl1' Set.union xs
 
 -- Eval 2.0 (based on the fixing)
 
