@@ -123,7 +123,7 @@ dependencies :: Expr -> Set.Set Id
 dependencies = cata algebra where
   algebra (Cst _) = Set.empty
   algebra (Var x) = Set.singleton x
-  algebra (Op _ xs) = foldl1' Set.union xs
+  algebra (Op _ xs) = Set.unions xs
 
 -- Eval 2.0 (based on the fixing)
 
