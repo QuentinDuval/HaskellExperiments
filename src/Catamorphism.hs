@@ -18,16 +18,18 @@ data ExprR r
   = Cst Int
   | Var Id
   | Op OpType [r]
-  deriving (
-    Show, Eq, Ord,
-    Functor, Foldable,
-    Traversable)
+  deriving (Show, Eq, Ord)
 
 newtype Fix f = Fix { unFix :: f (Fix f) } -- f = f f
 type Expr = Fix ExprR -- Fix point of ExprR
 
 instance Eq (f (Fix f)) => Eq (Fix f) where
   a == b = unFix a == unFix b
+
+instance Functor ExprR where
+  fmap _ (Cst c) = Cst c
+  fmap _ (Var v) = Var v
+  fmap f (Op opType xs) = Op opType (map f xs)
 
 -- Smart constructors
 
