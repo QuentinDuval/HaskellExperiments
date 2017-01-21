@@ -45,11 +45,17 @@ isCst _ = False
 
 cata :: (Functor f) => (f a -> a) -> Fix f -> a
 cata algebra =
-  algebra             -- Apply the algebra on top level
-  .
-  fmap (cata algebra) -- Apply the cata to the (Fix f)
-  .
-  unFix               -- Unwraps to get a f (Fix f)
+  algebra 
+  . fmap (cata algebra)
+  . unFix
+
+-- Specialized version for Expr
+
+cataExpr :: (ExprR a -> a) -> Expr -> a
+cataExpr algebra =
+  algebra
+  . fmap (cataExpr algebra)
+  . unFix
 
 -- Composition
 
