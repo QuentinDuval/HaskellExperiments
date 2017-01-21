@@ -58,14 +58,11 @@ optOp opType xs neutral combine =
   let (constants, vars) = partition isCst xs
       constantsVal = map (\(Cst x) -> x) constants
       sumCst = foldl' combine neutral constantsVal
-      neutralCst = sumCst == neutral
   in case vars of
       [] -> cst sumCst
-      [y] | neutralCst -> y
-      ys -> Op opType $
-              if neutralCst
-                then ys
-                else (cst sumCst : ys)
+      [y] | sumCst == neutral -> y
+      ys  | sumCst == neutral -> Op opType ys
+      ys  -> Op opType (cst sumCst : ys)
 
 
 -- Partial evals and dependencies

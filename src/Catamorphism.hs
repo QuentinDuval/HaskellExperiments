@@ -102,14 +102,11 @@ optimizeOp (Op optType xs) neutral combine =
   let (constants, vars) = partition isCst xs
       constantsVal = map (\(Fix (Cst x)) -> x) constants
       sumCst = foldl' combine neutral constantsVal
-      neutralCst = sumCst == neutral
   in case vars of
-      [] -> cst sumCst
-      [y] | neutralCst -> y
-      ys -> Fix $ Op optType $
-              if neutralCst
-                then ys
-                else (cst sumCst : ys)
+      []  -> cst sumCst
+      [y] | sumCst == neutral -> y
+      ys  | sumCst == neutral -> Fix (Op optType ys)
+      ys  -> Fix (Op optType (cst sumCst : ys))
 
 optimizeAdd :: ExprR Expr -> Expr
 optimizeAdd op@(Op Add _) = optimizeOp op 0 (+)
