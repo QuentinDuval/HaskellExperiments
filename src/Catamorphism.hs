@@ -4,6 +4,7 @@ module Catamorphism (
 
 ) where
 
+import Control.Monad.Cont
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -18,7 +19,7 @@ data ExprR r
   = Cst Int
   | Var Id
   | Op OpType [r]
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq, Ord, Foldable, Traversable)
 
 newtype Fix f = Fix { unFix :: f (Fix f) } -- f = f f
 type Expr = Fix ExprR -- Fix point of ExprR
@@ -45,7 +46,7 @@ isCst _ = False
 
 cata :: (Functor f) => (f a -> a) -> Fix f -> a
 cata algebra =
-  algebra 
+  algebra
   . fmap (cata algebra)
   . unFix
 
@@ -56,6 +57,17 @@ cataExpr algebra =
   algebra
   . fmap (cataExpr algebra)
   . unFix
+
+-- Continuation passing style Catamorphism
+
+cataCps :: (Traversable f, Functor f) => (f a -> a) -> Fix f -> a
+cataCps algebra expr = runCont (recur algebra expr) id
+
+recur :: (Traversable f, Functor f) => (f a -> a) -> Fix f -> Cont a a
+recur algebra (Fix expr) = do
+  sub <- sequence $ fmap (recur algebra) expr
+  return (algebra sub)
+
 
 -- Composition
 
