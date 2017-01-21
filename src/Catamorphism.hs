@@ -60,10 +60,10 @@ cataExpr algebra =
 
 -- Continuation passing style Catamorphism
 
-cataCps :: (Traversable f, Functor f) => (f a -> a) -> Fix f -> a
+cataCps :: (Traversable f) => (f a -> a) -> Fix f -> a
 cataCps algebra expr = runCont (recur algebra expr) id
 
-recur :: (Traversable f, Functor f) => (f a -> a) -> Fix f -> Cont a a
+recur :: (Traversable f) => (f a -> a) -> Fix f -> Cont a a
 recur algebra (Fix expr) = do
   sub <- sequence $ fmap (recur algebra) expr
   return (algebra sub)
