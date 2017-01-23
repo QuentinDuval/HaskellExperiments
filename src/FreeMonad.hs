@@ -8,7 +8,18 @@ import Data.List (tails)
 -- http://underscore.io/blog/posts/2015/04/14/free-monads-are-simple.html
 -- http://www.haskellforall.com/2012/06/you-could-have-invented-free-monads.html
 
--- FREE MONAD (it is like the Fix point for the catamorphism, but with Pure and r)
+{-
+  TODO - Look at:
+  https://hackage.haskell.org/package/QuickCheck Random testing of program properties
+  https://hackage.haskell.org/package/lucid Constructing HTML
+  https://hackage.haskell.org/package/opaleye Typed database access
+  https://hackage.haskell.org/package/parsec Constructing parsers
+  https://hackage.haskell.org/package/pipes Streaming applications
+-}
+
+-- FREE MONAD:
+-- It is like the Fix point for the catamorphism but with Pure and r
+-- It is only there to help you define your Monad... you do not need it
 
 data Free f r
   = Free (f (Free f r))
