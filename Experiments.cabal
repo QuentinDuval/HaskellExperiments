@@ -19,6 +19,7 @@ library
                      , Arithmetic2
                      , Catamorphism
                      , FoldMergeSort
+                     , FreeMonad
                      , Lib
                      , Range
                      , RMQ
