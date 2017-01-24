@@ -149,7 +149,7 @@ get = liftF (Get id)
 fork :: Process () -> Process ()
 fork p = liftF (Fork p ())
 
-runProcess :: Process a -> IO a
+runProcess :: Process a -> IO a  -- TODO: too much similarities: catamorphism?
 runProcess (Free (Put msg p))  = putStrLn msg >> runProcess p
 runProcess (Free (Get cont))   = getLine >>= \msg -> runProcess (cont msg)
 runProcess (Free (Fork p1 p2)) = runProcess p1 >> runProcess p2 -- Sequential
