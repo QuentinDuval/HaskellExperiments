@@ -101,11 +101,11 @@ type FakeSource = Map.Map MarketDataId MarketData
 getMarket :: MarketDataId -> Eval MarketData
 getMarket mdsId = liftF (ReadMarket mdsId id)
 
-runEval :: Eval r -> Reader FakeSource r
-runEval (Pure r) = return r
-runEval (Free (ReadMarket mdsId f)) = do
+runFakeEval :: Eval r -> Reader FakeSource r
+runFakeEval (Pure r) = return r
+runFakeEval (Free (ReadMarket mdsId f)) = do
   mds <- asks (Map.! mdsId)
-  runEval (f mds)
+  runFakeEval (f mds)
 
 --------------------------------------------------------------------------------
 -- Program 2
@@ -120,6 +120,6 @@ prog2 = do
 testProg2 :: IO ()
 testProg2 = do
   let m = Map.fromList [(1, "EUR"), (2, "USD")]
-  print $ runReader (runEval prog2) m
+  print $ runReader (runFakeEval prog2) m
 
 --
