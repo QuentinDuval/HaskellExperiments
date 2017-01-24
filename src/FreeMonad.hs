@@ -132,11 +132,10 @@ testProg2 = do
 -- Program 3
 --------------------------------------------------------------------------------
 
-{-
 data ProcessR cont
   = Get (String -> cont)
   | Put String cont
-  | Fork (ProcessR ()) cont
+  | Fork (Free ProcessR ()) cont
   deriving (Functor)
 
 type Process = Free ProcessR
@@ -149,9 +148,20 @@ get = liftF (Get id)
 
 fork :: Process () -> Process ()
 fork p = liftF (Fork p ())
--}
 
+runProcess :: Process a -> IO a
+runProcess (Free (Put msg p))  = putStrLn msg >> runProcess p
+runProcess (Free (Get cont))   = getLine >>= \msg -> runProcess (cont msg)
+runProcess (Free (Fork p1 p2)) = runProcess p1 >> runProcess p2 -- Sequential
+runProcess (Pure x)            = pure x
 
+runConcurrent :: Process a -> IO a -- bad things happen here (no sync on putStrLn)
+runConcurrent (Free (Put msg p))  = putStrLn msg >> runConcurrent p
+runConcurrent (Free (Get cont))   = getLine >>= \msg -> runConcurrent (cont msg)
+runConcurrent (Free (Fork p1 p2)) = forkIO (runConcurrent p1) >> runConcurrent p2
+runConcurrent (Pure x)            = pure x
+
+{-
 data Process a
   = Get (String -> Process a)
   | Put String (Process a)
@@ -190,6 +200,7 @@ runConcurrent (Put msg p)  = putStrLn msg >> runConcurrent p
 runConcurrent (Get cont)   = getLine >>= \msg -> runConcurrent (cont msg)
 runConcurrent (Fork p1 p2) = forkIO (runConcurrent p1) >> runConcurrent p2
 runConcurrent (Done x)     = pure x
+-}
 
 -- Examples
 
