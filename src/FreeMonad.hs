@@ -96,11 +96,12 @@ data EvalStmt a
   deriving (Functor)
 
 type Eval = Free EvalStmt
+type FakeSource = Map.Map MarketDataId MarketData
 
 getMarket :: MarketDataId -> Eval MarketData
 getMarket mdsId = liftF (ReadMarket mdsId id)
 
-runEval :: Eval r -> Reader (Map.Map MarketDataId MarketData) r
+runEval :: Eval r -> Reader FakeSource r
 runEval (Pure r) = return r
 runEval (Free (ReadMarket mdsId f)) = do
   mds <- asks (Map.! mdsId)
