@@ -2,6 +2,7 @@
 module FreeMonad where
 
 -- import Control.Monad.Free
+import Control.Concurrent
 import Control.Monad
 import Control.Monad.Reader
 import Data.List (tails)
@@ -45,6 +46,13 @@ instance Functor f => Monad (Free f) where
   Pure a >>= g = g a
   Free f >>= g = Free (fmap (>>= g) f)
 
+liftF :: Functor f => f r -> Free f r
+liftF x = Free (fmap Pure x) -- Wraps each leaf with Pure
+
+unliftF :: Monad f => Free f a -> f a
+unliftF (Pure a) = return a
+unliftF (Free a) = a >>= unliftF
+
 --------------------------------------------------------------------------------
 -- Our DSL 2
 --------------------------------------------------------------------------------
@@ -65,9 +73,6 @@ interpret (Free (ReadLine f)) = getLine >>= \l -> interpret (f l)
 interpret (Free (WriteLine s f)) = putStrLn s >> interpret f
 
 -- Helpers to build our language
-
-liftF :: Functor f => f r -> Free f r
-liftF x = Free (fmap Pure x) -- Wraps each leaf with Pure
 
 readLine :: Program String
 readLine = liftF (ReadLine id)
@@ -121,5 +126,79 @@ testProg2 :: IO ()
 testProg2 = do
   let m = Map.fromList [(1, "EUR"), (2, "USD")]
   print $ runReader (runFakeEval prog2) m
+
+
+--------------------------------------------------------------------------------
+-- Program 3
+--------------------------------------------------------------------------------
+
+{-
+data ProcessR cont
+  = Get (String -> cont)
+  | Put String cont
+  | Fork (ProcessR ()) cont
+  deriving (Functor)
+
+type Process = Free ProcessR
+
+put :: String -> Process ()
+put s = liftF (Put s ())
+
+get :: Process String
+get = liftF (Get id)
+
+fork :: Process () -> Process ()
+fork p = liftF (Fork p ())
+-}
+
+
+data Process a
+  = Get (String -> Process a)
+  | Put String (Process a)
+  | Fork (Process ()) (Process a)
+  | Done a
+  deriving (Functor)
+
+instance Applicative Process where
+  pure = Done
+  (<*>) = ap
+
+instance Monad Process where
+  return = pure
+  (Put msg p) >>= f  = Put msg (p >>= f)
+  (Get cont) >>= f   = Get $ \msg -> cont msg >>= f
+  (Fork p1 p2) >>= f = Fork p1 (p2 >>= f)
+  (Done x) >>= f     = f x
+
+put :: String -> Process ()
+put s = Put s (Done ())
+
+get :: Process String
+get = Get return
+
+fork :: Process () -> Process ()
+fork p = Fork p (Done ())
+
+runProcess :: Process a -> IO a
+runProcess (Put msg p)  = putStrLn msg >> runProcess p
+runProcess (Get cont)   = getLine >>= \msg -> runProcess (cont msg)
+runProcess (Fork p1 p2) = runProcess p1 >> runProcess p2 -- Sequential
+runProcess (Done x)     = pure x
+
+runConcurrent :: Process a -> IO a -- bad things happen here (no sync on putStrLn)
+runConcurrent (Put msg p)  = putStrLn msg >> runConcurrent p
+runConcurrent (Get cont)   = getLine >>= \msg -> runConcurrent (cont msg)
+runConcurrent (Fork p1 p2) = forkIO (runConcurrent p1) >> runConcurrent p2
+runConcurrent (Done x)     = pure x
+
+-- Examples
+
+forkExample :: Process ()
+forkExample = do
+  fork $ do
+    replicateM_ 3 (put "a")
+    put "End of thread A"
+  replicateM_ 3 (put "b")
+  put "End of thread B"
 
 --
