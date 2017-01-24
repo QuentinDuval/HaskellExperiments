@@ -1,8 +1,11 @@
+{-# LANGUAGE DeriveFunctor #-}
 module FreeMonad where
 
 -- import Control.Monad.Free
 import Control.Monad
+import Control.Monad.Reader
 import Data.List (tails)
+import qualified Data.Map as Map
 
 -- DSL
 -- http://underscore.io/blog/posts/2015/04/14/free-monads-are-simple.html
@@ -17,9 +20,11 @@ import Data.List (tails)
   https://hackage.haskell.org/package/pipes Streaming applications
 -}
 
+--------------------------------------------------------------------------------
 -- FREE MONAD:
 -- It is like the Fix point for the catamorphism but with Pure and r
 -- It is only there to help you define your Monad... you do not need it
+--------------------------------------------------------------------------------
 
 data Free f r
   = Free (f (Free f r))
@@ -40,7 +45,9 @@ instance Functor f => Monad (Free f) where
   Pure a >>= g = g a
   Free f >>= g = Free (fmap (>>= g) f)
 
--- Our DSL
+--------------------------------------------------------------------------------
+-- Our DSL 2
+--------------------------------------------------------------------------------
 
 data Request cont
   = ReadLine (String -> cont)
@@ -53,6 +60,7 @@ instance Functor Request where
 type Program = Free Request
 
 interpret :: Program r -> IO r -- Going from one Monad to another
+interpret (Pure r) = return r
 interpret (Free (ReadLine f)) = getLine >>= \l -> interpret (f l)
 interpret (Free (WriteLine s f)) = putStrLn s >> interpret f
 
@@ -75,5 +83,42 @@ prog1 = do
   forM_ (tails r) prnLine
   return ()
 
+
+--------------------------------------------------------------------------------
+-- Our DSL 2
+--------------------------------------------------------------------------------
+
+type MarketDataId = Int
+type MarketData = String
+
+data EvalStmt a
+  = ReadMarket MarketDataId (MarketData -> a)
+  deriving (Functor)
+
+type Eval = Free EvalStmt
+
+getMarket :: MarketDataId -> Eval MarketData
+getMarket mdsId = liftF (ReadMarket mdsId id)
+
+runEval :: Eval r -> Reader (Map.Map MarketDataId MarketData) r
+runEval (Pure r) = return r
+runEval (Free (ReadMarket mdsId f)) = do
+  mds <- asks (Map.! mdsId)
+  runEval (f mds)
+
+--------------------------------------------------------------------------------
+-- Program 2
+--------------------------------------------------------------------------------
+
+prog2 :: Eval [MarketData]
+prog2 = do
+  r1 <- getMarket 1
+  r2 <- getMarket 2
+  return [r1, r2]
+
+testProg2 :: IO ()
+testProg2 = do
+  let m = Map.fromList [(1, "EUR"), (2, "USD")]
+  print $ runReader (runEval prog2) m
 
 --
