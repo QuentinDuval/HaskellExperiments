@@ -1,12 +1,17 @@
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
 module FreeMonad where
 
 -- import Control.Monad.Free
 import Control.Concurrent
+import Control.Concurrent.Chan
+import Control.Concurrent.MVar
 import Control.Monad
 import Control.Monad.Reader
 import Data.List (tails)
 import qualified Data.Map as Map
+import System.IO
 
 -- DSL
 -- http://underscore.io/blog/posts/2015/04/14/free-monads-are-simple.html
@@ -52,6 +57,7 @@ liftF x = Free (fmap Pure x) -- Wraps each leaf with Pure
 unliftF :: Monad f => Free f a -> f a
 unliftF (Pure a) = return a
 unliftF (Free a) = a >>= unliftF
+
 
 --------------------------------------------------------------------------------
 -- Our DSL 1
@@ -153,11 +159,34 @@ runProcess (Free (Get cont))   = getLine >>= \msg -> runProcess (cont msg)
 runProcess (Free (Fork p1 p2)) = runProcess p1 >> runProcess p2 -- Sequential
 runProcess (Pure x)            = pure x
 
+------------
+
+data Msg
+  = Send String
+  | Stop (MVar ())
+
 runConcurrent :: Process a -> IO a -- bad things happen here (no sync on putStrLn)
-runConcurrent (Free (Put msg p))  = putStrLn msg >> runConcurrent p
-runConcurrent (Free (Get cont))   = getLine >>= \msg -> runConcurrent (cont msg)
-runConcurrent (Free (Fork p1 p2)) = forkIO (runConcurrent p1) >> runConcurrent p2
-runConcurrent (Pure x)            = pure x
+runConcurrent p = do
+  c <- newChan
+  executor <- forkIO (loop c)
+  r <- runWith c p
+  v <- newEmptyMVar
+  writeChan c (Stop v)
+  takeMVar v
+  return r
+  where
+    loop c = do
+      str <- readChan c
+      case str of
+        Send str -> print str >> loop c
+        Stop var -> putMVar var ()
+
+    runWith :: Chan Msg -> Process b -> IO b
+    runWith c (Free (Put msg p))  = writeChan c (Send msg) >> yield >> runWith c p
+    runWith c (Free (Get cont))   = getLine >>= \msg -> runWith c (cont msg)
+    runWith c (Free (Fork p1 p2)) = forkIO (runWith c p1) >> runWith c p2
+    runWith c (Pure x)            = pure x
+
 
 {-
 data Process a
@@ -205,9 +234,9 @@ runConcurrent (Done x)     = pure x
 forkExample :: Process ()
 forkExample = do
   fork $ do
-    replicateM_ 3 (put "a")
-    put "End of thread A"
-  replicateM_ 3 (put "b")
-  put "End of thread B"
+    forM_ ['a'..'z'] $ \c -> put [c]
+    put "End of Letters"
+  forM_ [0..26] $ \i -> put (show i)
+  put "End of Numbers"
 
 --
