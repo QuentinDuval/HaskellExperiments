@@ -187,6 +187,16 @@ runConcurrent p = do
     runWith c (Free (Fork p1 p2)) = forkIO (runWith c p1) >> runWith c p2
     runWith c (Pure x)            = pure x
 
+--
+
+runMultiProcess :: [Process ()] -> IO () -- Does not really work with any output => we need a main thrad
+runMultiProcess (Free (Put msg p) : ps)  = putStrLn msg >> runMultiProcess (ps ++ [p])
+runMultiProcess (Free (Get cont) : ps)   = getLine >>= \msg -> runMultiProcess (ps ++ [cont msg])
+runMultiProcess (Free (Fork p1 p2) : ps) = runMultiProcess (p1 : p2 : ps)
+runMultiProcess (Pure _ : ps)     = runMultiProcess ps
+runMultiProcess []                = pure ()
+
+
 
 {-
 data Process a
