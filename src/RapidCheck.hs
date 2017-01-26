@@ -52,7 +52,10 @@ forAll :: (Show a, Testable prop) => Gen a -> (a -> prop) -> Property
 forAll gen prop =
   MkProperty $ do
     x <- gen
-    asGenerator (property (prop x))
+    r <- asGenerator (property (prop x))
+    case r of
+      Failure r -> return $ Failure $ show x ++ ", " ++ r
+      Success -> return Success
 
 rapidCheck :: Testable prop => prop -> IO Result
 rapidCheck = rapidCheckWith 100
