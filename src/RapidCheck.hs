@@ -16,7 +16,7 @@ newtype Property = MkProperty { asGenerator :: Gen Result }
 
 data Result
   = Success
-  | Failure { failingInput :: String }
+  | Failure { failingInputs :: [String] }
   deriving (Show, Eq, Ord)
 
 instance Monoid Result where
@@ -38,7 +38,7 @@ instance Testable Result where
 
 instance Testable Bool where
   property = property . toResult where
-    toResult b = if b then Success else Failure ""
+    toResult b = if b then Success else Failure []
 
 instance Testable Property where
   property = id
@@ -54,7 +54,7 @@ forAll gen prop =
     x <- gen
     r <- asGenerator (property (prop x))
     case r of
-      Failure r -> return $ Failure $ show x ++ ", " ++ r
+      Failure r -> return $ Failure (show x : r)
       Success -> return Success
 
 rapidCheck :: Testable prop => prop -> IO Result
