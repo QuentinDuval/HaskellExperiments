@@ -1,6 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module RapidCheck where
 
+import Control.Monad
 import System.Random
 
 
@@ -8,8 +9,10 @@ import System.Random
 -- Simplified version
 --------------------------------------------------------------------------------
 
-newtype Gen a    = MkGen { unGen :: IO a } deriving (Functor, Applicative, Monad)
-newtype Property = MkProperty { unProperty :: Gen Bool }
+newtype Gen a = MkGen { runGen :: IO a }
+  deriving (Functor, Applicative, Monad)
+
+newtype Property = MkProperty { asGenerator :: Gen Bool }
 
 class Arbitrary a where
   arbitrary :: Gen a
@@ -33,10 +36,16 @@ forAll :: (Show a, Testable prop) => Gen a -> (a -> prop) -> Property
 forAll gen prop =
   MkProperty $ do
     x <- gen
-    unProperty (property (prop x))
+    asGenerator (property (prop x))
 
 rapidCheck :: Testable prop => prop -> IO Bool
-rapidCheck prop = unGen (unProperty (property prop)) -- Run a single test (TODO - run several time this expression)
+rapidCheck = rapidCheckWith 100
+
+rapidCheckWith :: Testable prop => Int -> prop -> IO Bool
+rapidCheckWith attemptNb prop = do
+  let gen = asGenerator (property prop)
+  results <- replicateM attemptNb (runGen gen)
+  return $ foldl (&&) True results
 
 
 --------------------------------------------------------------------------------
