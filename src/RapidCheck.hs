@@ -30,6 +30,9 @@ instance Monoid Result where
 class Arbitrary a where
   arbitrary :: Gen a
 
+class CoArbitrary a where
+  coarbitrary :: a -> Gen b -> Gen b
+
 class Testable a where
   property :: a -> Property
 
@@ -73,6 +76,9 @@ rapidCheckWith attemptNb prop = do
 
 instance Arbitrary Int where
   arbitrary = MkGen randomIO
+
+instance CoArbitrary Int where
+  coarbitrary = undefined
 
 
 --------------------------------------------------------------------------------
