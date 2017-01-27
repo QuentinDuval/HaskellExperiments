@@ -9,8 +9,16 @@ import System.Random
 -- Simplified version of a Quick Check library
 --------------------------------------------------------------------------------
 
-newtype Gen a = MkGen { runGen :: IO a }
-  deriving (Functor, Applicative, Monad)
+newtype Gen a = MkGen { runGen :: StdGen -> a }
+  deriving (Functor, Applicative)
+
+instance Monad Gen where
+  return a = MkGen (const a)
+  (MkGen g1) >>= f =
+    MkGen $ \gen ->
+      let (gen1, gen2) = split gen
+          MkGen g2 = f (g1 gen1)
+      in g2 gen2
 
 newtype Property = MkProperty { asGenerator :: Gen Result }
 
@@ -66,7 +74,9 @@ rapidCheck = rapidCheckWith 100
 rapidCheckWith :: Testable prop => Int -> prop -> IO Result
 rapidCheckWith attemptNb prop = do
   let gen = asGenerator (property prop)
-  results <- replicateM attemptNb (runGen gen)
+  let gens = replicateM attemptNb gen -- Thanks to Gen being a Monad!
+  stdGen <- getStdGen
+  let results = runGen gens stdGen
   return (mconcat results)
 
 
@@ -75,11 +85,18 @@ rapidCheckWith attemptNb prop = do
 --------------------------------------------------------------------------------
 
 instance Arbitrary Int where
-  arbitrary = MkGen randomIO
+  arbitrary = MkGen $ \gen -> fst (next gen)
 
 instance CoArbitrary Int where
-  coarbitrary = undefined
+  coarbitrary _ g = g -- TODO: really bad implementation
 
+{-
+instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
+  arbitrary = promote (`coarbitrary` arbitrary)
+
+promote :: (a -> Gen b) -> Gen (a -> b)
+promote f = MkGen $ return $ \a -> let m = f a in m
+-}
 
 --------------------------------------------------------------------------------
 -- Example
