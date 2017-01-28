@@ -92,16 +92,13 @@ instance CoArbitrary Int where
   coarbitrary _ g = g -- TODO: really bad implementation
 
 instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
-  arbitrary = promote (`coarbitrary` arbitrary)
-
-promote :: (a -> Gen b) -> Gen (a -> b)
-promote f = MkGen $ \gen a -> let g = f a in runGen g gen
+  arbitrary = fmap apply arbitrary
 
 instance (CoArbitrary a, Arbitrary b) => Arbitrary (Fun a b) where
-  arbitrary = fmap Fun arbitrary -- promote' (\ a -> coarbitrary a arbitrary)
+  arbitrary = promote (\a -> coarbitrary a arbitrary)
 
-promote' :: (a -> Gen b) -> Gen (Fun a b)
-promote' f = MkGen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
+promote :: (a -> Gen b) -> Gen (Fun a b)
+promote f = MkGen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
 
 data Fun a b = Fun { apply :: a -> b }
 
