@@ -30,7 +30,7 @@ newtype Property = MkProperty { asGenerator :: Gen Result }
 
 data Result
   = Success
-  | Failure { seed :: Int, failingInputs :: [String] }
+  | Failure { seed :: Int, attemptNb :: Int , failingInputs :: [String] }
   deriving (Show, Eq, Ord)
 
 instance Monoid Result where
@@ -55,7 +55,7 @@ instance Testable Result where
 
 instance Testable Bool where
   property = property . toResult where
-    toResult b = if b then Success else Failure 0 []
+    toResult b = if b then Success else Failure 0 0 []
 
 instance Testable Property where
   property = id
@@ -76,16 +76,22 @@ forAll gen prop =
       Success -> return Success
 
 rapidCheck :: Testable prop => prop -> IO Result
-rapidCheck prop = do
-  seed <- randomIO
-  let result = rapidCheckWith 100 seed prop
-  return result
+rapidCheck = rapidCheckWith 100
 
-rapidCheckWith :: Testable prop => Int -> Int -> prop -> Result
-rapidCheckWith attemptNb seed prop =
+rapidCheckWith :: Testable prop => Int -> prop -> IO Result
+rapidCheckWith attemptNb prop = do
+  seed <- randomIO
+  return $ rapidCheckImpl attemptNb seed prop
+
+replay :: Testable prop => Result -> prop -> Result
+replay Success _ = Success
+replay f@Failure{} prop = rapidCheckImpl (attemptNb f) (seed f) prop
+
+rapidCheckImpl :: Testable prop => Int -> Int -> prop -> Result
+rapidCheckImpl attemptNb seed prop =
   case runAttempts attemptNb seed (asGenerator (property prop)) of
     Success -> Success
-    f@Failure{} -> f { seed = seed }
+    f@Failure{} -> f { seed = seed, attemptNb = attemptNb }
 
 runAttempts :: Int -> Int -> Gen Result -> Result
 runAttempts attemptNb seed gen =
@@ -137,7 +143,9 @@ prop_composition i (Fun f) (Fun g) = f (g i) == g (f i)
 runTests :: IO ()
 runTests = do
   print =<< rapidCheck prop_addition
-  print =<< rapidCheck prop_addition_bad
+  failure <- rapidCheck prop_addition_bad
+  print failure
+  print $ replay failure prop_addition_bad
   print =<< rapidCheck prop_composition
 
 
