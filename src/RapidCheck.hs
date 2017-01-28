@@ -10,15 +10,21 @@ import System.Random
 --------------------------------------------------------------------------------
 
 newtype Gen a = MkGen { runGen :: StdGen -> a }
-  deriving (Functor, Applicative)
+  deriving (Functor)
 
-instance Monad Gen where
-  return a = MkGen (const a)
-  (MkGen g1) >>= f =
+instance Applicative Gen where
+  pure a = MkGen (const a)
+  f <*> a =
     MkGen $ \gen ->
       let (gen1, gen2) = split gen
-          MkGen g2 = f (g1 gen1)
-      in g2 gen2
+      in (runGen f gen1) (runGen a gen2)
+
+instance Monad Gen where
+  a >>= f =
+    MkGen $ \gen ->
+      let (gen1, gen2) = split gen
+          b = f (runGen a gen1)
+      in runGen b gen2
 
 newtype Property = MkProperty { asGenerator :: Gen Result }
 
@@ -63,7 +69,7 @@ instance (Show a, Arbitrary a, Testable prop) => Testable (a -> prop) where
 forAll :: (Show a, Testable prop) => Gen a -> (a -> prop) -> Property
 forAll gen prop =
   MkProperty $ do
-    x <- gen
+    x <- gen -- TODO: require Gen as monad
     r <- asGenerator (property (prop x))
     case r of
       f@Failure{} -> return $ f { failingInputs = show x : failingInputs f }
@@ -79,7 +85,7 @@ rapidCheckWith :: Testable prop => Int -> Int -> prop -> Result
 rapidCheckWith attemptNb seed prop =
   let stdGen = mkStdGen seed
       gen = asGenerator (property prop)
-      gens = replicateM attemptNb gen -- Thanks to Gen being a Monad!
+      gens = sequenceA (replicate attemptNb gen) -- TODO: requires Gen as Applicative
       result = mconcat $ runGen gens stdGen
   in case result of
     Success -> Success
