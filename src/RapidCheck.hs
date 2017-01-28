@@ -70,13 +70,14 @@ forAll gen prop =
       Success -> return Success
 
 rapidCheck :: Testable prop => prop -> IO Result
-rapidCheck = rapidCheckWith 100
+rapidCheck prop = do
+  seed <- randomIO
+  rapidCheckWith 100 (mkStdGen seed) prop
 
-rapidCheckWith :: Testable prop => Int -> prop -> IO Result
-rapidCheckWith attemptNb prop = do
+rapidCheckWith :: Testable prop => Int -> StdGen -> prop -> IO Result
+rapidCheckWith attemptNb stdGen prop = do
   let gen = asGenerator (property prop)
   let gens = replicateM attemptNb gen -- Thanks to Gen being a Monad!
-  stdGen <- getStdGen
   let results = runGen gens stdGen
   return (mconcat results)
 
