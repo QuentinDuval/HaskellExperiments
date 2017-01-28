@@ -97,6 +97,16 @@ instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
 promote :: (a -> Gen b) -> Gen (a -> b)
 promote f = MkGen $ \gen a -> let g = f a in runGen g gen
 
+instance (CoArbitrary a, Arbitrary b) => Arbitrary (Fun a b) where
+  arbitrary = fmap Fun arbitrary -- promote' (\ a -> coarbitrary a arbitrary)
+
+promote' :: (a -> Gen b) -> Gen (Fun a b)
+promote' f = MkGen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
+
+data Fun a b = Fun { apply :: a -> b }
+
+instance Show (Fun a b) where
+  show _ = "<function>"
 
 --------------------------------------------------------------------------------
 -- Example
@@ -109,14 +119,14 @@ prop_addition_bad :: Int -> Int -> Bool
 prop_addition_bad a b = a + a == b + b
 
 -- TODO: Need a specific type for functions
-prop_composition :: Int -> (Int -> Int) -> (Int -> Int) -> Bool
-prop_composition i f g = f (g i) == g (f i)
+prop_composition :: Int -> Fun Int Int -> Fun Int Int -> Bool
+prop_composition i (Fun f) (Fun g) = f (g i) == g (f i)
 
 runTests :: IO ()
 runTests = do
   print =<< rapidCheck prop_addition
   print =<< rapidCheck prop_addition_bad
-  -- print =<< rapidCheck prop_composition
+  print =<< rapidCheck prop_composition
 
 
 --
