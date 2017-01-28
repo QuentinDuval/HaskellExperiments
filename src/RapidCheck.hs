@@ -23,8 +23,8 @@ instance Monad Gen where
   a >>= f =
     MkGen $ \gen ->
       let (gen1, gen2) = split gen
-          b = f (runGen a gen1)
-      in runGen b gen2
+          b = runGen a gen1
+      in runGen (f b) gen2
 
 newtype Property = MkProperty { asGenerator :: Gen Result }
 
