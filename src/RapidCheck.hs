@@ -72,14 +72,16 @@ forAll gen prop =
 rapidCheck :: Testable prop => prop -> IO Result
 rapidCheck prop = do
   seed <- randomIO
-  rapidCheckWith 100 (mkStdGen seed) prop
+  let result = rapidCheckWith 100 seed prop
+  return result
 
-rapidCheckWith :: Testable prop => Int -> StdGen -> prop -> IO Result
-rapidCheckWith attemptNb stdGen prop = do
-  let gen = asGenerator (property prop)
-  let gens = replicateM attemptNb gen -- Thanks to Gen being a Monad!
-  let results = runGen gens stdGen
-  return (mconcat results)
+rapidCheckWith :: Testable prop => Int -> Int -> prop -> Result
+rapidCheckWith attemptNb seed prop =
+  let stdGen = mkStdGen seed
+      gen = asGenerator (property prop)
+      gens = replicateM attemptNb gen -- Thanks to Gen being a Monad!
+      results = runGen gens stdGen
+  in mconcat results
 
 
 --------------------------------------------------------------------------------
