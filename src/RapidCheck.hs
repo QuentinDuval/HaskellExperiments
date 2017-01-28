@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+-- {-# LANGUAGE RecordWildCards #-}
 module RapidCheck where
 
 import Control.Monad
@@ -24,13 +25,13 @@ newtype Property = MkProperty { asGenerator :: Gen Result }
 
 data Result
   = Success
-  | Failure { failingInputs :: [String] }
+  | Failure { seed :: Int, failingInputs :: [String] }
   deriving (Show, Eq, Ord)
 
 instance Monoid Result where
   mempty = Success
-  mappend (Failure f) _ = Failure f
-  mappend _ (Failure f) = Failure f
+  mappend f@Failure{} _ = f
+  mappend _ f@Failure{} = f
   mappend Success Success = Success
 
 --------------------------------------------------------------------------------
@@ -49,7 +50,7 @@ instance Testable Result where
 
 instance Testable Bool where
   property = property . toResult where
-    toResult b = if b then Success else Failure []
+    toResult b = if b then Success else Failure 0 []
 
 instance Testable Property where
   property = id
@@ -66,7 +67,7 @@ forAll gen prop =
     x <- gen
     r <- asGenerator (property (prop x))
     case r of
-      Failure r -> return $ Failure (show x : r)
+      f@Failure{} -> return $ f { failingInputs = show x : failingInputs f }
       Success -> return Success
 
 rapidCheck :: Testable prop => prop -> IO Result
@@ -80,8 +81,10 @@ rapidCheckWith attemptNb seed prop =
   let stdGen = mkStdGen seed
       gen = asGenerator (property prop)
       gens = replicateM attemptNb gen -- Thanks to Gen being a Monad!
-      results = runGen gens stdGen
-  in mconcat results
+      result = mconcat $ runGen gens stdGen
+  in case result of
+    Success -> Success
+    f@Failure{} -> f { seed = seed }
 
 
 --------------------------------------------------------------------------------
