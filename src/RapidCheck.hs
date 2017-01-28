@@ -83,14 +83,21 @@ rapidCheck prop = do
 
 rapidCheckWith :: Testable prop => Int -> Int -> prop -> Result
 rapidCheckWith attemptNb seed prop =
-  let stdGen = mkStdGen seed
-      gen = asGenerator (property prop)
-      gens = sequenceA (replicate attemptNb gen) -- TODO: requires Gen as Applicative
-      result = mconcat $ runGen gens stdGen
-  in case result of
+  case runAttempts attemptNb seed (asGenerator (property prop)) of
     Success -> Success
     f@Failure{} -> f { seed = seed }
 
+runAttempts :: Int -> Int -> Gen Result -> Result
+runAttempts attemptNb seed gen =
+  let stdGens = map mkStdGen [seed .. seed + attemptNb]
+  in foldr (\stdGen r -> runGen gen stdGen `mappend` r) Success stdGens
+
+-- Alternative implementation based on the Applicative
+runAttempts' :: Int -> Int -> Gen Result -> Result
+runAttempts' attemptNb seed gen =
+  let stdGen = mkStdGen seed
+      gens = sequenceA (replicate attemptNb gen)
+  in mconcat $ runGen gens stdGen
 
 --------------------------------------------------------------------------------
 -- Helpers
