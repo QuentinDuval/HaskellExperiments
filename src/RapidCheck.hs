@@ -127,7 +127,7 @@ variant n g = foldl (\g b -> side b (split g)) g (digits n)
 digits :: Int -> [Bool]
 digits =
   map ((== 0) . (`mod` 2))
-  . takeWhile (> 0)
+  . takeWhile (/= 0)
   . iterate (`div` 2)
 
 promote :: (a -> Gen b) -> Gen (Fun a b)
