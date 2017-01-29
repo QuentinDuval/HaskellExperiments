@@ -23,7 +23,7 @@ instance Monoid Result where
   mempty = Success
   mappend f@Failure{} _ = f
   mappend _ f@Failure{} = f
-  mappend Success Success = Success
+  mappend _ _ = Success
 
 --------------------------------------------------------------------------------
 
@@ -76,18 +76,13 @@ replay Success _ = Success
 replay f@Failure{} prop = rapidCheckImpl 1 (seed f) prop
 
 rapidCheckImpl :: Testable prop => Int -> Int -> prop -> Result
-rapidCheckImpl attemptNb seed prop =
-  runAttempts attemptNb seed (asGenerator (property prop))
-
-runAttempts :: Int -> Int -> Gen Result -> Result
-runAttempts attemptNb seed gen =
-  foldMap (runAttempt gen) [seed .. seed + attemptNb - 1]
-
-runAttempt :: Gen Result -> Int -> Result
-runAttempt gen seed =
-  case runGen gen (mkStdGen seed) of
-    Success -> Success
-    f@Failure{} -> f { seed = seed }
+rapidCheckImpl attemptNb startSeed prop = runAll (asGenerator (property prop))
+  where
+    runAll gen = foldMap (runOne gen) [startSeed .. startSeed + attemptNb - 1]
+    runOne gen seed =
+      case runGen gen (mkStdGen seed) of
+        Success -> Success
+        f@Failure{} -> f { seed = seed }
 
 {-
 instance Applicative Gen where
