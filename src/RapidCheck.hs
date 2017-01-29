@@ -142,21 +142,21 @@ instance Show (Fun a b) where show _ = "<function>"
 -- Example
 --------------------------------------------------------------------------------
 
-prop_addition :: Int -> Int -> Bool
-prop_addition a b = a + b == b + a
+prop_gcd :: Int -> Int -> Bool
+prop_gcd a b = a * b == gcd a b * lcm a b
 
-prop_addition_bad :: Int -> Int -> Bool
-prop_addition_bad a b = a + a == b + b
+prop_gcd_bad :: Int -> Int -> Bool
+prop_gcd_bad a b = gcd a b > 1
 
 prop_composition :: Int -> Fun Int Int -> Fun Int Int -> Bool
 prop_composition i (Fun f) (Fun g) = f (g i) == g (f i)
 
 runTests :: IO ()
 runTests = do
-  print =<< rapidCheck prop_addition
-  failure <- rapidCheck prop_addition_bad
+  print =<< rapidCheck prop_gcd
+  failure <- rapidCheck prop_gcd_bad
   print failure
-  print $ replay failure prop_addition_bad
+  print $ replay failure prop_gcd_bad
   print =<< rapidCheck prop_composition
 
 
