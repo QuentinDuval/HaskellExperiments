@@ -121,14 +121,17 @@ instance (CoArbitrary a, Arbitrary b) => Arbitrary (Fun a b) where
   arbitrary = promote (\a -> coarbitrary a arbitrary)
 
 variant :: Int -> StdGen -> StdGen
-variant n g = foldl (\g b -> side b (split g)) g (digits n)
-  where side b = if b then snd else fst
-
-digits :: Int -> [Bool]
-digits =
-  map ((== 0) . (`mod` 2))
-  . takeWhile (/= 0)
-  . iterate (`div` 2)
+variant n g0 =
+  foldl
+    (\g b -> side b (split g))
+    (side (n > 0) (split g0))
+    (digits (abs n))
+  where
+    side b = if b then snd else fst
+    digits =
+      map ((== 0) . (`mod` 2))
+      . takeWhile (> 0)
+      . iterate (`div` 2)
 
 promote :: (a -> Gen b) -> Gen (Fun a b)
 promote f = MkGen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
