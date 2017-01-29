@@ -9,22 +9,7 @@ import System.Random
 -- Simplified version of a Quick Check library
 --------------------------------------------------------------------------------
 
-newtype Gen a = MkGen { runGen :: StdGen -> a }
-  deriving (Functor)
-
-instance Applicative Gen where
-  pure a = MkGen (const a)
-  f <*> a =
-    MkGen $ \gen ->
-      let (gen1, gen2) = split gen
-      in (runGen f gen1) (runGen a gen2)
-
-instance Monad Gen where
-  a >>= f =
-    MkGen $ \gen ->
-      let (gen1, gen2) = split gen
-          b = runGen a gen1
-      in runGen (f b) gen2
+newtype Gen a = MkGen { runGen :: StdGen -> a } deriving (Functor)
 
 newtype Property = MkProperty { asGenerator :: Gen Result }
 
@@ -68,12 +53,14 @@ instance (Show a, Arbitrary a, Testable prop) => Testable (a -> prop) where
 
 forAll :: (Show a, Testable prop) => Gen a -> (a -> prop) -> Property
 forAll gen prop =
-  MkProperty $ do
-    x <- gen -- TODO: require Gen as monad
-    r <- asGenerator (property (prop x))
-    case r of
-      f@Failure{} -> return $ f { failingInputs = show x : failingInputs f }
-      Success -> return Success
+  MkProperty $ MkGen $ \stdGen ->
+    let (stdGen1, stdGen2) = split stdGen
+        x = runGen gen stdGen1
+        pGen = asGenerator (property (prop x))
+        r = runGen pGen stdGen2
+    in case r of
+      f@Failure{} -> f { failingInputs = show x : failingInputs f }
+      Success -> Success
 
 rapidCheck :: Testable prop => prop -> IO Result
 rapidCheck = rapidCheckWith 100
@@ -98,12 +85,28 @@ runAttempts attemptNb seed gen =
   let stdGens = map mkStdGen [seed .. seed + attemptNb]
   in foldr (\stdGen r -> runGen gen stdGen `mappend` r) Success stdGens
 
+{-
+instance Applicative Gen where
+  pure a = MkGen (const a)
+  f <*> a =
+    MkGen $ \gen ->
+      let (gen1, gen2) = split gen
+      in (runGen f gen1) (runGen a gen2)
+
+instance Monad Gen where
+  a >>= f =
+    MkGen $ \gen ->
+      let (gen1, gen2) = split gen
+          b = runGen a gen1
+      in runGen (f b) gen2
+
 -- Alternative implementation based on the Applicative
 runAttempts' :: Int -> Int -> Gen Result -> Result
 runAttempts' attemptNb seed gen =
   let stdGen = mkStdGen seed
       gens = sequenceA (replicate attemptNb gen)
   in mconcat $ runGen gens stdGen
+-}
 
 --------------------------------------------------------------------------------
 -- Helpers
