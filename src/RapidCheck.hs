@@ -2,6 +2,7 @@
 module RapidCheck where
 
 import Control.Monad
+import Data.Monoid((<>))
 import System.Random
 
 
@@ -15,7 +16,7 @@ newtype Property = MkProperty { asGenerator :: Gen Result }
 
 data Result
   = Success
-  | Failure { seed :: Int, attemptNb :: Int , failingInputs :: [String] }
+  | Failure { seed :: Int, failingInputs :: [String] }
   deriving (Show, Eq, Ord)
 
 instance Monoid Result where
@@ -40,7 +41,7 @@ instance Testable Result where
 
 instance Testable Bool where
   property = property . toResult where
-    toResult b = if b then Success else Failure 0 0 []
+    toResult b = if b then Success else Failure 0 []
 
 instance Testable Property where
   property = id
@@ -72,18 +73,21 @@ rapidCheckWith attemptNb prop = do
 
 replay :: Testable prop => Result -> prop -> Result
 replay Success _ = Success
-replay f@Failure{} prop = rapidCheckImpl (attemptNb f) (seed f) prop
+replay f@Failure{} prop = rapidCheckImpl 1 (seed f) prop
 
 rapidCheckImpl :: Testable prop => Int -> Int -> prop -> Result
 rapidCheckImpl attemptNb seed prop =
-  case runAttempts attemptNb seed (asGenerator (property prop)) of
-    Success -> Success
-    f@Failure{} -> f { seed = seed, attemptNb = attemptNb }
+  runAttempts attemptNb seed (asGenerator (property prop))
 
 runAttempts :: Int -> Int -> Gen Result -> Result
 runAttempts attemptNb seed gen =
-  let stdGens = map mkStdGen [seed .. seed + attemptNb]
-  in foldr (\stdGen r -> runGen gen stdGen `mappend` r) Success stdGens
+  foldMap (runAttempt gen) [seed .. seed + attemptNb - 1]
+
+runAttempt :: Gen Result -> Int -> Result
+runAttempt gen seed =
+  case runGen gen (mkStdGen seed) of
+    Success -> Success
+    f@Failure{} -> f { seed = seed }
 
 {-
 instance Applicative Gen where
