@@ -36,15 +36,17 @@ class CoArbitrary a where
 class Testable a where
   property :: a -> Property
 
+instance Testable Property where
+  property = id
+
 instance Testable Result where
   property r = Property $ Gen $ return r
 
 instance Testable Bool where
-  property = property . toResult
-    where toResult b = if b then Success else Failure 0 []
+  property = property . toResult where
+      toResult b = if b then Success
+                        else Failure { seed = 0, counterExample = []}
 
-instance Testable Property where
-  property = id
 
 instance (Show a, Arbitrary a, Testable prop) => Testable (a -> prop) where
   property = forAll arbitrary
