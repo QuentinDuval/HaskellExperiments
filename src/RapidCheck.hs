@@ -10,7 +10,7 @@ import System.Random
 -- Simplified version of a Quick Check library
 --------------------------------------------------------------------------------
 
-newtype Gen a = MkGen { runGen :: StdGen -> a } deriving (Functor)
+newtype Gen a = MkGen { runGen :: StdGen -> a }
 
 newtype Property = MkProperty { asGenerator :: Gen Result }
 
@@ -110,16 +110,16 @@ runAttempts' attemptNb seed gen =
 -- Helpers
 --------------------------------------------------------------------------------
 
-instance Arbitrary Int where
-  arbitrary = MkGen $ \gen -> fst (next gen)
+instance Arbitrary Integer where
+  arbitrary = MkGen $ \gen -> fromIntegral $ fst (next gen)
 
-instance CoArbitrary Int where
+instance CoArbitrary Integer where
   coarbitrary n (MkGen g) = MkGen $ \gen -> g (variant n gen)
 
 instance (CoArbitrary a, Arbitrary b) => Arbitrary (Fun a b) where
   arbitrary = promote (\a -> coarbitrary a arbitrary)
 
-variant :: Int -> StdGen -> StdGen
+variant :: (Integral n) => n -> StdGen -> StdGen
 variant n randGen0 =
   foldl
     (\randGen b -> side b (split randGen))
@@ -142,13 +142,13 @@ instance Show (Fun a b) where show _ = "<function>"
 -- Example
 --------------------------------------------------------------------------------
 
-prop_gcd :: Int -> Int -> Bool
+prop_gcd :: Integer -> Integer -> Bool
 prop_gcd a b = a * b == gcd a b * lcm a b
 
-prop_gcd_bad :: Int -> Int -> Bool
+prop_gcd_bad :: Integer -> Integer -> Bool
 prop_gcd_bad a b = gcd a b > 1
 
-prop_composition :: Int -> Fun Int Int -> Fun Int Int -> Bool
+prop_composition :: Integer -> Fun Integer Integer -> Fun Integer Integer -> Bool
 prop_composition i (Fun f) (Fun g) = f (g i) == g (f i)
 
 runTests :: IO ()
