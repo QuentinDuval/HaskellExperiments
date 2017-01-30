@@ -12,7 +12,7 @@ import System.Random
 
 newtype Gen a = MkGen { runGen :: StdGen -> a }
 
-newtype Property = MkProperty { asGenerator :: Gen Result }
+newtype Property = MkProperty { propGenerator :: Gen Result }
 
 data Result
   = Success
@@ -57,7 +57,7 @@ forAll argGen prop =
   MkProperty $ MkGen $ \randGen ->
     let (randGen1, randGen2) = split randGen
         arg = runGen argGen randGen1
-        propGen = asGenerator (property (prop arg))
+        propGen = propGenerator (property (prop arg))
     in case runGen propGen randGen2 of
       f@Failure{} -> f { counterExample = show arg : counterExample f }
       Success -> Success
@@ -75,7 +75,7 @@ replay Success _ = Success
 replay f@Failure{} prop = rapidCheckImpl 1 (seed f) prop
 
 rapidCheckImpl :: Testable prop => Int -> Int -> prop -> Result
-rapidCheckImpl attemptNb startSeed prop = runAll (asGenerator (property prop))
+rapidCheckImpl attemptNb startSeed prop = runAll (propGenerator (property prop))
   where
     runAll gen = foldMap (runOne gen) [startSeed .. startSeed + attemptNb - 1]
     runOne gen seed =
