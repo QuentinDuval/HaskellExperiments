@@ -16,7 +16,7 @@ newtype Property = MkProperty { asGenerator :: Gen Result }
 
 data Result
   = Success
-  | Failure { seed :: Int, failingInputs :: [String] }
+  | Failure { seed :: Int, counterExample :: [String] }
   deriving (Show, Eq, Ord)
 
 instance Monoid Result where
@@ -59,7 +59,7 @@ forAll argGen prop =
         arg = runGen argGen randGen1
         propGen = asGenerator (property (prop arg))
     in case runGen propGen randGen2 of
-      f@Failure{} -> f { failingInputs = show arg : failingInputs f }
+      f@Failure{} -> f { counterExample = show arg : counterExample f }
       Success -> Success
 
 rapidCheck :: Testable prop => prop -> IO Result
