@@ -40,7 +40,7 @@ instance Testable Property where
   property = id
 
 instance Testable Result where
-  property r = Property $ Gen $ return r
+  property r = Property (Gen (const r))
 
 instance Testable Bool where
   property = property . toResult where
