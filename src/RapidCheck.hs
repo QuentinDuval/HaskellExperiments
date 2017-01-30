@@ -10,9 +10,9 @@ import System.Random
 -- Simplified version of a Quick Check library
 --------------------------------------------------------------------------------
 
-newtype Gen a = MkGen { runGen :: StdGen -> a }
+newtype Gen a = Gen { runGen :: StdGen -> a }
 
-newtype Property = MkProperty { propGenerator :: Gen Result }
+newtype Property = Property { propGenerator :: Gen Result }
 
 data Result
   = Success
@@ -37,7 +37,7 @@ class Testable a where
   property :: a -> Property
 
 instance Testable Result where
-  property r = MkProperty $ MkGen $ return r
+  property r = Property $ Gen $ return r
 
 instance Testable Bool where
   property = property . toResult
@@ -54,7 +54,7 @@ instance (Show a, Arbitrary a, Testable prop) => Testable (a -> prop) where
 
 forAll :: (Show a, Testable prop) => Gen a -> (a -> prop) -> Property
 forAll argGen prop =
-  MkProperty $ MkGen $ \randGen ->
+  Property $ Gen $ \randGen ->
     let (randGen1, randGen2) = split randGen
         arg = runGen argGen randGen1
         propGen = propGenerator (property (prop arg))
@@ -85,15 +85,15 @@ rapidCheckImpl attemptNb startSeed prop = runAll (propGenerator (property prop))
 
 {-
 instance Applicative Gen where
-  pure a = MkGen (const a)
+  pure a = Gen (const a)
   f <*> a =
-    MkGen $ \gen ->
+    Gen $ \gen ->
       let (gen1, gen2) = split gen
       in (runGen f gen1) (runGen a gen2)
 
 instance Monad Gen where
   a >>= f =
-    MkGen $ \gen ->
+    Gen $ \gen ->
       let (gen1, gen2) = split gen
           b = runGen a gen1
       in runGen (f b) gen2
@@ -111,10 +111,10 @@ runAttempts' attemptNb seed gen =
 --------------------------------------------------------------------------------
 
 instance Arbitrary Integer where
-  arbitrary = MkGen $ \gen -> fromIntegral $ fst (next gen)
+  arbitrary = Gen $ \gen -> fromIntegral $ fst (next gen)
 
 instance CoArbitrary Integer where
-  coarbitrary n (MkGen g) = MkGen $ \gen -> g (variant n gen)
+  coarbitrary n (Gen g) = Gen $ \gen -> g (variant n gen)
 
 instance (CoArbitrary a, Arbitrary b) => Arbitrary (Fun a b) where
   arbitrary = promote (\a -> coarbitrary a arbitrary)
@@ -133,7 +133,7 @@ variant n randGen0 =
       . iterate (`div` 2)
 
 promote :: (a -> Gen b) -> Gen (Fun a b)
-promote f = MkGen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
+promote f = Gen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
 
 data Fun a b = Fun { apply :: a -> b }
 instance Show (Fun a b) where show _ = "<function>"
