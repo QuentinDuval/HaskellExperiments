@@ -47,7 +47,6 @@ instance Testable Bool where
       toResult b = if b then Success
                         else Failure { seed = 0, counterExample = []}
 
-
 instance (Show a, Arbitrary a, Testable prop) => Testable (a -> prop) where
   property = forAll arbitrary
 
