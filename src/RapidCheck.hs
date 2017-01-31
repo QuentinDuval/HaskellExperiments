@@ -57,11 +57,12 @@ instance (Show a, Arbitrary a, Testable testable)
 forAll :: (Show a, Testable testable) => Gen a -> (a -> testable) -> Property
 forAll argGen prop =
   Property $ Gen $ \randGen ->
-    let (randGen1, randGen2) = split randGen
-        arg = runGen argGen randGen1
-        propGen = propGenerator (property (prop arg))
-    in case runGen propGen randGen2 of
-      f@Failure{} -> f { counterExample = show arg : counterExample f }
+    let (randGen1, randGen2) = split randGen              -- Split the generator in two
+        arg = runGen argGen randGen1                      -- Use the first generator to produce `a`
+        testable = property (prop arg)                    -- Use the `a` to access the next `Property`
+        result = runGen (propGenerator testable) randGen2 -- Use the second generator to run this property
+    in case result of
+      f@Failure{} -> f { counterExample = show arg : counterExample f } -- Combine the outputs
       Success -> Success
 
 rapidCheck :: Testable prop => prop -> IO Result
