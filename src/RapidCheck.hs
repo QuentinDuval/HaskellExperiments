@@ -10,20 +10,29 @@ import System.Random
 -- Simplified version of a Quick Check library
 --------------------------------------------------------------------------------
 
-newtype Gen a = Gen { runGen :: StdGen -> a }
-
-newtype Property = Property { propGenerator :: Gen Result }
-
 data Result
   = Success
-  | Failure { seed :: Int, counterExample :: [String] }
-  deriving (Show, Eq, Ord)
+  | Failure {
+    seed :: Int,
+    counterExample :: [String]
+  } deriving (Show, Eq, Ord)
 
 instance Monoid Result where
   mempty = Success
   mappend f@Failure{} _ = f
   mappend _ f@Failure{} = f
   mappend _ _ = Success
+
+overFailure :: Result -> (Result -> Result) -> Result
+overFailure Success _ = Success
+overFailure failure f = f failure
+
+newtype Gen a = Gen { runGen :: StdGen -> a }
+
+newtype Property = Property { getGen :: Gen Result }
+
+runProp :: Property -> StdGen -> Result
+runProp prop rand = runGen (getGen prop) rand
 
 --------------------------------------------------------------------------------
 
@@ -56,14 +65,15 @@ instance (Show a, Arbitrary a, Testable testable)
 
 forAll :: (Show a, Testable testable) => Gen a -> (a -> testable) -> Property
 forAll argGen prop =
-  Property $ Gen $ \randGen ->
-    let (randGen1, randGen2) = split randGen              -- Split the generator in two
-        arg = runGen argGen randGen1                      -- Use the first generator to produce `a`
-        testable = property (prop arg)                    -- Use the `a` to access the next `Property`
-        result = runGen (propGenerator testable) randGen2 -- Use the second generator to run this property
-    in case result of
-      f@Failure{} -> f { counterExample = show arg : counterExample f } -- Combine the outputs
-      Success -> Success
+  Property $ Gen $ \rand ->             -- Create a new property that will
+    let (rand1, rand2) = split rand     -- Split the generator in two
+        arg = runGen argGen rand1       -- Use the first generator to produce an arg
+        subProp = property (prop arg)   -- Use the `a` to access the sub-property
+        result = runProp subProp rand2  -- Use the second generator to run it
+    in overFailure result $ \failure -> -- Enrich the result with the argument
+        failure { counterExample = show arg : counterExample failure }
+
+--------------------------------------------------------------------------------
 
 rapidCheck :: Testable prop => prop -> IO Result
 rapidCheck = rapidCheckWith 100
@@ -74,17 +84,16 @@ rapidCheckWith attemptNb prop = do
   return $ rapidCheckImpl attemptNb seed prop
 
 replay :: Testable prop => Result -> prop -> Result
-replay Success _ = Success
-replay f@Failure{} prop = rapidCheckImpl 1 (seed f) prop
+replay result prop =
+  overFailure result $ \failure -> rapidCheckImpl 1 (seed failure) prop
 
 rapidCheckImpl :: Testable prop => Int -> Int -> prop -> Result
-rapidCheckImpl attemptNb startSeed prop = runAll (propGenerator (property prop))
+rapidCheckImpl attemptNb startSeed prop = runAll (property prop)
   where
-    runAll gen = foldMap (runOne gen) [startSeed .. startSeed + attemptNb - 1]
-    runOne gen seed =
-      case runGen gen (mkStdGen seed) of
-        Success -> Success
-        f@Failure{} -> f { seed = seed }
+    runAll prop = foldMap (runOne prop) [startSeed .. startSeed + attemptNb - 1]
+    runOne prop seed =
+      let result = runProp prop (mkStdGen seed)
+      in overFailure result $ \failure -> failure { seed = seed }
 
 {-
 instance Applicative Gen where
