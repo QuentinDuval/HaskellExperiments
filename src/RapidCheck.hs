@@ -19,9 +19,8 @@ data Result
 
 instance Monoid Result where
   mempty = Success
-  mappend f@Failure{} _ = f
-  mappend _ f@Failure{} = f
-  mappend _ _ = Success
+  mappend lhs@Failure{} _ = lhs
+  mappend _ rhs = rhs
 
 overFailure :: Result -> (Result -> Result) -> Result
 overFailure Success _ = Success
