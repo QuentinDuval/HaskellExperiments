@@ -19,8 +19,9 @@ data Result
 
 instance Monoid Result where
   mempty = Success
-  mappend lhs@Failure{} _ = lhs
-  mappend _ rhs = rhs
+  mappend f@Failure{} _ = f
+  mappend _ f@Failure{} = f
+  mappend _ _ = Success
 
 overFailure :: Result -> (Result -> Result) -> Result
 overFailure Success _ = Success
@@ -121,11 +122,14 @@ runAttempts' attemptNb seed gen =
 -- Helpers
 --------------------------------------------------------------------------------
 
+instance Arbitrary Int where
+  arbitrary = Gen $ \rand -> fst (next rand)
+
 instance Arbitrary Integer where
-  arbitrary = Gen $ \gen -> fromIntegral $ fst (next gen)
+  arbitrary = Gen $ \rand -> fromIntegral $ fst (next rand)
 
 instance CoArbitrary Integer where
-  coarbitrary n (Gen g) = Gen $ \gen -> g (variant n gen)
+  coarbitrary n (Gen g) = Gen $ \rand -> g (variant n rand)
 
 instance (CoArbitrary a, Arbitrary b) => Arbitrary (Fun a b) where
   arbitrary = promote (\a -> coarbitrary a arbitrary)
@@ -159,16 +163,19 @@ prop_gcd a b = a * b == gcd a b * lcm a b
 prop_gcd_bad :: Integer -> Integer -> Bool
 prop_gcd_bad a b = gcd a b > 1
 
+prop_gcd_overflow :: Int -> Int -> Bool
+prop_gcd_overflow a b = a * b == gcd a b * lcm a b
+
 prop_composition :: Integer -> Fun Integer Integer -> Fun Integer Integer -> Bool
 prop_composition i (Fun f) (Fun g) = f (g i) == g (f i)
 
 runTests :: IO ()
 runTests = do
   print =<< rapidCheck prop_gcd
+  print =<< rapidCheck prop_gcd_overflow
   failure <- rapidCheck prop_gcd_bad
   print failure
   print $ replay failure prop_gcd_bad
   print =<< rapidCheck prop_composition
-
 
 --
