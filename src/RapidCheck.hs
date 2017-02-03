@@ -190,7 +190,7 @@ prop_partition xs (Fun p) =
       , not (any p rhs)
       , sort xs == sort (lhs ++ rhs) ]
 
-prop_distributive :: Integer -> Integer -> Fun Integer Integer-> Bool
+prop_distributive :: Integer -> Integer -> Fun Integer Integer -> Bool
 prop_distributive a b (Fun f) = f (a + b) == f a + f b
 
 runTests :: IO ()
