@@ -182,13 +182,16 @@ prop_gcd_bad a b = gcd a b > 1
 prop_gcd_overflow :: Int -> Int -> Bool
 prop_gcd_overflow a b = a * b == gcd a b * lcm a b
 
-prop_composition :: Integer -> Fun Integer Integer -> Fun Integer Integer -> Bool
-prop_composition i (Fun f) (Fun g) = f (g i) == g (f i)
-
-prop_filter :: [Integer] -> Fun Integer Bool -> Bool
-prop_filter xs (Fun p) =
+prop_partition :: [Integer] -> Fun Integer Bool -> Bool
+prop_partition xs (Fun p) =
   let (lhs, rhs) = partition p xs
-  in all p lhs && not (any p rhs)
+  in and
+      [ all p lhs
+      , not (any p rhs)
+      , sort xs == sort (lhs ++ rhs) ]
+
+prop_distributive :: Integer -> Integer -> Fun Integer Integer-> Bool
+prop_distributive a b (Fun f) = f (a + b) == f a + f b
 
 runTests :: IO ()
 runTests = do
@@ -198,7 +201,7 @@ runTests = do
   print failure
   print $ replay failure prop_gcd_bad
   print "Higher order functions"
-  print =<< rapidCheck prop_filter
-  print =<< rapidCheck prop_composition
+  print =<< rapidCheck prop_partition
+  print =<< rapidCheck prop_distributive
 
 --
