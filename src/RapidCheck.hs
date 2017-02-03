@@ -164,7 +164,7 @@ variants rand = rand1 : variants rand2
   where (rand1, rand2) = split rand
 
 promote :: (a -> Gen b) -> Gen (Fun a b)
-promote f = Gen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
+promote f = Gen $ \gen -> Fun $ \a -> runGen (f a) gen
 
 data Fun a b = Fun { apply :: a -> b }
 instance Show (Fun a b) where show _ = "<function>"
