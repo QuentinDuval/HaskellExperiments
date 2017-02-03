@@ -2,6 +2,7 @@ module FizzBuzz where
 
 import Data.List
 import Test.QuickCheck
+import Test.QuickCheck.Function
 
 
 -- IMPL
@@ -42,10 +43,28 @@ prop_fizzBuzz3 o1 o2 =
       let expected = concatMap show $ nub $ sort [o1, o2] :: String
       in fizzBuzz (a * b) == expected
 
+-- TESTING QuickCheck with functions
+
+prop_partition :: [Integer] -> Fun Integer Bool -> Bool
+prop_partition xs p' =
+  let p = apply p'
+      (lhs, rhs) = partition p xs
+  in and
+      [ all p lhs
+      , not (any p rhs)
+      , sort xs == sort (lhs ++ rhs) ]
+
+prop_distributive :: Integer -> Integer -> Fun Integer Integer -> Bool
+prop_distributive a b f = apply f (a + b) == apply f a + apply f b
+
+-- Run tests :)
+
 runTests :: IO ()
 runTests = do
   quickCheck prop_fizzBuzz
   quickCheck prop_fizzBuzz2
   quickCheck prop_fizzBuzz3
+  quickCheck prop_partition
+  quickCheck prop_distributive
 
 --
