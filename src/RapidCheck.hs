@@ -2,6 +2,7 @@
 module RapidCheck where
 
 import Control.Monad
+import Data.List
 import Data.Monoid((<>))
 import System.Random
 
@@ -128,6 +129,17 @@ instance Arbitrary Int where
 instance Arbitrary Integer where
   arbitrary = Gen $ \rand -> fromIntegral $ fst (next rand)
 
+instance Arbitrary Bool where
+  arbitrary = Gen $ \rand -> odd (fst (next rand))
+
+instance Arbitrary a => Arbitrary [a] where
+  arbitrary =
+    Gen $ \rand ->
+      let (rand1, rand2) = split rand
+          len = fst (randomR (0,10) rand1)
+          rands = take len (variants rand2)
+      in map (runGen arbitrary) rands
+
 instance CoArbitrary Integer where
   coarbitrary n (Gen g) = Gen $ \rand -> g (variant n rand)
 
@@ -146,6 +158,10 @@ variant n randGen0 =
       map ((== 0) . (`mod` 2))
       . takeWhile (> 0)
       . iterate (`div` 2)
+
+variants :: StdGen -> [StdGen]
+variants rand = rand1 : variants rand2
+  where (rand1, rand2) = split rand
 
 promote :: (a -> Gen b) -> Gen (Fun a b)
 promote f = Gen $ \gen -> Fun $ \a -> let g = f a in runGen g gen
@@ -169,6 +185,11 @@ prop_gcd_overflow a b = a * b == gcd a b * lcm a b
 prop_composition :: Integer -> Fun Integer Integer -> Fun Integer Integer -> Bool
 prop_composition i (Fun f) (Fun g) = f (g i) == g (f i)
 
+prop_filter :: [Integer] -> Fun Integer Bool -> Bool
+prop_filter xs (Fun p) =
+  let (lhs, rhs) = partition p xs
+  in all p lhs && not (any p rhs)
+
 runTests :: IO ()
 runTests = do
   print =<< rapidCheck prop_gcd
@@ -176,6 +197,8 @@ runTests = do
   failure <- rapidCheck prop_gcd_bad
   print failure
   print $ replay failure prop_gcd_bad
+  print "Higher order functions"
+  print =<< rapidCheck prop_filter
   print =<< rapidCheck prop_composition
 
 --
