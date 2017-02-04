@@ -150,11 +150,13 @@ instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
 perturb :: (Integral n) => n -> StdGen -> StdGen
 perturb n rand0 =
   foldl
-    (\rand b -> side b (split rand))
-    (side (n > 0) (split rand0))
-    (digits (abs n))
+    (\rand b -> vary b rand)  -- Vary generator based on digit value
+    (vary (n < 0) rand0)      -- Vary generator based on sign
+    (digits (abs n))          -- Decompose a positive number in digits
   where
-    side b = if b then snd else fst
+    vary digit rand =
+      (if digit then snd else fst)
+      (split rand)
     digits =
       map ((== 0) . (`mod` 2))
       . takeWhile (> 0)
