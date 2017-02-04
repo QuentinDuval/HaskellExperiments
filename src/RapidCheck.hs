@@ -42,7 +42,7 @@ class Arbitrary a where
   arbitrary :: Gen a
 
 class CoArbitrary a where
-  coarbitrary :: a -> Gen b -> Gen b
+  coarbitrary :: Gen b -> a -> Gen b
 
 class Testable a where
   property :: a -> Property
@@ -142,10 +142,10 @@ instance Arbitrary a => Arbitrary [a] where
       in map (runGen arbitrary) rands
 
 instance CoArbitrary Integer where
-  coarbitrary n (Gen g) = Gen $ \rand -> g (variant n rand)
+  coarbitrary gen n = Gen $ \rand -> runGen gen (variant n rand)
 
 instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
-  arbitrary = promote (\a -> coarbitrary a arbitrary)
+  arbitrary = promote (coarbitrary arbitrary)
 
 variant :: (Integral n) => n -> StdGen -> StdGen
 variant n randGen0 =
@@ -165,7 +165,7 @@ variants rand = rand1 : variants rand2
   where (rand1, rand2) = split rand
 
 promote :: (a -> Gen b) -> Gen (a -> b)
-promote f = Gen $ \gen a -> runGen (f a) gen
+promote f = Gen $ \rand a -> runGen (f a) rand
 
 
 --------------------------------------------------------------------------------
