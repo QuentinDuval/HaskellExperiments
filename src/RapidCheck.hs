@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
 module RapidCheck where
 
 import Control.Monad
@@ -133,6 +134,12 @@ instance Arbitrary Integer where
 instance Arbitrary Bool where
   arbitrary = Gen $ \rand -> odd (fst (next rand))
 
+instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
+  arbitrary = promote (coarbitrary arbitrary)
+
+promote :: (a -> Gen b) -> Gen (a -> b)
+promote f = Gen $ \rand a -> runGen (f a) rand
+
 instance Arbitrary a => Arbitrary [a] where
   arbitrary =
     Gen $ \rand ->
@@ -144,8 +151,13 @@ instance Arbitrary a => Arbitrary [a] where
 instance CoArbitrary Integer where
   coarbitrary gen n = Gen $ \rand -> runGen gen (perturb n rand)
 
-instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
-  arbitrary = promote (coarbitrary arbitrary)
+instance CoArbitrary Bool where
+  coarbitrary gen b = coarbitrary gen (if b then 1 else 0 :: Integer)
+
+instance CoArbitrary [Int] where
+  coarbitrary gen xs =
+    Gen $ \rand ->
+      runGen gen (foldr perturb (perturb 0 rand) xs)
 
 perturb :: (Integral n) => n -> StdGen -> StdGen
 perturb n rand0 =
@@ -165,9 +177,6 @@ perturb n rand0 =
 variants :: StdGen -> [StdGen]
 variants rand = rand1 : variants rand2
   where (rand1, rand2) = split rand
-
-promote :: (a -> Gen b) -> Gen (a -> b)
-promote f = Gen $ \rand a -> runGen (f a) rand
 
 
 --------------------------------------------------------------------------------
@@ -191,6 +200,14 @@ prop_partition xs p =
       , not (any p rhs)
       , sort xs == sort (lhs ++ rhs) ]
 
+prop_partition_2 :: [[Int]] -> ([Int] -> Bool) -> Bool
+prop_partition_2 xs p =
+  let (lhs, rhs) = partition p xs
+  in and
+      [ all p lhs
+      , not (any p rhs)
+      , sort xs == sort (lhs ++ rhs) ]
+
 prop_distributive :: Integer -> Integer -> (Integer -> Integer) -> Bool
 prop_distributive a b f = f (a + b) == f a + f b
 
@@ -203,6 +220,7 @@ runTests = do
   print $ replay failure prop_gcd_bad
   print "Higher order functions"
   print =<< rapidCheck prop_partition
+  print =<< rapidCheck prop_partition_2
   print =<< rapidCheck prop_distributive
 
 --
