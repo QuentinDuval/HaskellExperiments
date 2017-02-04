@@ -148,10 +148,10 @@ instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
   arbitrary = promote (coarbitrary arbitrary)
 
 perturb :: (Integral n) => n -> StdGen -> StdGen
-perturb n randGen0 =
+perturb n rand0 =
   foldl
-    (\randGen b -> side b (split randGen))
-    (side (n > 0) (split randGen0))
+    (\rand b -> side b (split rand))
+    (side (n > 0) (split rand0))
     (digits (abs n))
   where
     side b = if b then snd else fst
