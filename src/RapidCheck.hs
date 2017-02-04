@@ -5,6 +5,7 @@ import Control.Monad
 import Data.List
 import Data.Monoid((<>))
 import System.Random
+import Text.Show.Functions
 
 
 --------------------------------------------------------------------------------
@@ -143,7 +144,7 @@ instance Arbitrary a => Arbitrary [a] where
 instance CoArbitrary Integer where
   coarbitrary n (Gen g) = Gen $ \rand -> g (variant n rand)
 
-instance (CoArbitrary a, Arbitrary b) => Arbitrary (Fun a b) where
+instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
   arbitrary = promote (\a -> coarbitrary a arbitrary)
 
 variant :: (Integral n) => n -> StdGen -> StdGen
@@ -163,11 +164,9 @@ variants :: StdGen -> [StdGen]
 variants rand = rand1 : variants rand2
   where (rand1, rand2) = split rand
 
-promote :: (a -> Gen b) -> Gen (Fun a b)
-promote f = Gen $ \gen -> Fun $ \a -> runGen (f a) gen
+promote :: (a -> Gen b) -> Gen (a -> b)
+promote f = Gen $ \gen a -> runGen (f a) gen
 
-data Fun a b = Fun { apply :: a -> b }
-instance Show (Fun a b) where show _ = "<function>"
 
 --------------------------------------------------------------------------------
 -- Example
@@ -182,16 +181,16 @@ prop_gcd_bad a b = gcd a b > 1
 prop_gcd_overflow :: Int -> Int -> Bool
 prop_gcd_overflow a b = a * b == gcd a b * lcm a b
 
-prop_partition :: [Integer] -> Fun Integer Bool -> Bool
-prop_partition xs (Fun p) =
+prop_partition :: [Integer] -> (Integer -> Bool) -> Bool
+prop_partition xs p =
   let (lhs, rhs) = partition p xs
   in and
       [ all p lhs
       , not (any p rhs)
       , sort xs == sort (lhs ++ rhs) ]
 
-prop_distributive :: Integer -> Integer -> Fun Integer Integer -> Bool
-prop_distributive a b (Fun f) = f (a + b) == f a + f b
+prop_distributive :: Integer -> Integer -> (Integer -> Integer) -> Bool
+prop_distributive a b f = f (a + b) == f a + f b
 
 runTests :: IO ()
 runTests = do
