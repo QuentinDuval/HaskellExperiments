@@ -15,7 +15,8 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Arithmetic
+  exposed-modules:     AlphaBeta
+                     , Arithmetic
                      , Arithmetic2
                      , Catamorphism
                      , FizzBuzz
