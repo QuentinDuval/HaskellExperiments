@@ -142,13 +142,13 @@ instance Arbitrary a => Arbitrary [a] where
       in map (runGen arbitrary) rands
 
 instance CoArbitrary Integer where
-  coarbitrary gen n = Gen $ \rand -> runGen gen (variant n rand)
+  coarbitrary gen n = Gen $ \rand -> runGen gen (perturb n rand)
 
 instance (CoArbitrary a, Arbitrary b) => Arbitrary (a -> b) where
   arbitrary = promote (coarbitrary arbitrary)
 
-variant :: (Integral n) => n -> StdGen -> StdGen
-variant n randGen0 =
+perturb :: (Integral n) => n -> StdGen -> StdGen
+perturb n randGen0 =
   foldl
     (\randGen b -> side b (split randGen))
     (side (n > 0) (split randGen0))
