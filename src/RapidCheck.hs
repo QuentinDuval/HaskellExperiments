@@ -97,10 +97,9 @@ forAll argGen argShrink prop =
         arg = runGen argGen rand1       -- Use the first generator to produce an arg
         subProp = property (prop arg)   -- Use the `a` to access the sub-property
         result = runProp subProp rand2  -- Use the second generator to run it
-    in overFailure result $
-          \failure ->
-            shrinking argShrink arg prop rand2
-            <> addToCounterExample arg failure
+    in overFailure result $ \failure ->     -- Handle the failure case:
+        shrinking argShrink arg prop rand2  -- Attempt to shrink the counter example
+        <> addToCounterExample arg failure  -- In case the shrining failed
 
 
 --------------------------------------------------------------------------------
@@ -109,7 +108,7 @@ forAll argGen argShrink prop =
 
 shrinking :: (Show a, Testable testable) => (a -> [a]) -> a -> (a -> testable) -> StdGen -> Result
 shrinking shrink arg prop rand =
-  let smaller = shrinkPostWalk arg shrink
+  let smaller = treePostWalk arg shrink
       results =
         dropWhile (isSuccess . snd) $
           map (\a -> (a, runProp (property (prop a)) rand)) smaller
@@ -117,10 +116,10 @@ shrinking shrink arg prop rand =
       [] -> Success
       ((arg', failure):_) -> addToCounterExample arg' failure
 
-shrinkPostWalk :: a -> (a -> [a]) -> [a]
-shrinkPostWalk initial shrink = go [initial] where
+treePostWalk :: a -> (a -> [a]) -> [a]
+treePostWalk root leaves = go [root] where
   go [] = []
-  go xs = concat [go (shrink x') | x' <- xs] ++ xs
+  go xs = concatMap (go . leaves) xs ++ xs
 
 
 --------------------------------------------------------------------------------
