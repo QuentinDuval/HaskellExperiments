@@ -2,6 +2,7 @@
 {-# LANGUAGE FlexibleInstances #-}
 module RapidCheck where
 
+import Control.Arrow((&&&))
 import Control.Monad
 import Data.List
 import Data.Monoid((<>))
@@ -54,10 +55,12 @@ runProp prop rand = runGen (getGen prop) rand
 -- Main type classes: Arbitrary, CoArbitrary and Testable
 --------------------------------------------------------------------------------
 
+type Shrinker a = a -> [a]
+
 class Arbitrary a where
   arbitrary :: Gen a
-  shrink :: a -> [a]
-  shrink _ = []
+  shrink :: Shrinker a
+  shrink = const []
 
 class CoArbitrary a where
   coarbitrary :: Gen b -> a -> Gen b
@@ -90,15 +93,15 @@ instance (Show a, Arbitrary a, Testable testable)
 -- forAll, the heart of property based testing
 --------------------------------------------------------------------------------
 
-forAll :: (Show a, Testable testable) => Gen a -> (a -> [a]) -> (a -> testable) -> Property
-forAll argGen argShrink prop =
+forAll :: (Show a, Testable testable) => Gen a -> Shrinker a -> (a -> testable) -> Property
+forAll argGen shrinker prop =
   Property $ Gen $ \rand ->             -- Create a new property that will
     let (rand1, rand2) = split rand     -- Split the generator in two
         arg = runGen argGen rand1       -- Use the first generator to produce an arg
         subProp = property (prop arg)   -- Use the `a` to access the sub-property
         result = runProp subProp rand2  -- Use the second generator to run it
     in overFailure result $ \failure ->     -- Handle the failure case:
-        shrinking argShrink arg prop rand2  -- Attempt to shrink the counter example
+        shrinkWith shrinker arg prop rand2  -- Attempt to shrink the counter example
         <> addToCounterExample arg failure  -- In case the shrining failed
 
 
@@ -106,10 +109,12 @@ forAll argGen argShrink prop =
 -- Shrinking process
 --------------------------------------------------------------------------------
 
-shrinking :: (Show a, Testable testable) => (a -> [a]) -> a -> (a -> testable) -> StdGen -> Result
-shrinking shrink arg prop rand =
-  let smaller = treePostWalk arg shrink
-      results = map (\a -> (a, runProp (property (prop a)) rand)) smaller
+shrinkWith :: (Show a, Testable testable)
+              => Shrinker a -> a -> (a -> testable) -> StdGen -> Result
+shrinkWith shrinker arg prop rand =
+  let smaller = treePostWalk arg shrinker
+      tryShrink a = runProp (property (prop a)) rand
+      results = map (id &&& tryShrink) smaller
       failures = dropWhile (isSuccess . snd) results
   in case failures of
       [] -> Success
