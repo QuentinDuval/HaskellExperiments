@@ -33,6 +33,10 @@ isSuccess :: Result -> Bool
 isSuccess Success = True
 isSuccess _ = False
 
+addToCounterExample :: (Show a) => a -> Result -> Result
+addToCounterExample arg failure =
+  failure { counterExample = show arg : counterExample failure }
+
 
 --------------------------------------------------------------------------------
 -- Generators and properties
@@ -96,7 +100,7 @@ forAll argGen argShrink prop =
     in overFailure result $
           \failure ->
             shrinking argShrink arg prop rand2
-            <> failure { counterExample = show arg : counterExample failure }
+            <> addToCounterExample arg failure
 
 
 --------------------------------------------------------------------------------
@@ -111,8 +115,7 @@ shrinking shrink arg prop rand =
           map (\a -> (a, runProp (property (prop a)) rand)) smaller
   in case results of
       [] -> Success
-      ((arg', failure):_) ->
-        failure { counterExample = show arg' : counterExample failure }
+      ((arg', failure):_) -> addToCounterExample arg' failure
 
 shrinkPostWalk :: a -> (a -> [a]) -> [a]
 shrinkPostWalk initial shrink = go [initial] where
