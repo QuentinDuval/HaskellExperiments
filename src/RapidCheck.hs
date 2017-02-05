@@ -152,15 +152,19 @@ rapidCheckImpl attemptNb startSeed prop = runAll (property prop)
 
 instance Arbitrary Int where
   arbitrary = Gen $ \rand -> fst (next rand)
+  shrink = shrinkIntegral
 
 instance Arbitrary Integer where
   arbitrary = Gen $ \rand -> fromIntegral $ fst (next rand)
-  shrink n
-    | n == 0 = []
-    | otherwise =
-      [abs n | n < 0]
-      ++ 0 : takeWhile (\m -> abs m < abs n)
-              [ n - i | i <- tail (iterate (`quot` 2) n)]
+  shrink = shrinkIntegral
+
+shrinkIntegral :: (Integral n) => n -> [n]
+shrinkIntegral n
+  | n == 0 = []
+  | otherwise =
+    [abs n | n < 0]
+    ++ 0 : takeWhile (\m -> abs m < abs n)
+            [ n - i | i <- tail (iterate (`quot` 2) n)]
 
 instance Arbitrary Bool where
   arbitrary = Gen $ \rand -> odd (fst (next rand))
