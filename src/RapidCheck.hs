@@ -30,9 +30,9 @@ overFailure :: Result -> (Result -> Result) -> Result
 overFailure Success _ = Success
 overFailure failure f = f failure
 
-isSuccess :: Result -> Bool
-isSuccess Success = True
-isSuccess _ = False
+isFailure :: Result -> Bool
+isFailure Success = False
+isFailure _ = True
 
 addToCounterExample :: (Show a) => a -> Result -> Result
 addToCounterExample arg failure =
@@ -115,10 +115,10 @@ shrinkWith shrinker arg prop rand =
   let smaller = treePostWalk arg shrinker
       tryShrink a = runProp (property (prop a)) rand
       results = map (id &&& tryShrink) smaller
-      failures = dropWhile (isSuccess . snd) results
+      failures = find (isFailure . snd) results
   in case failures of
-      [] -> Success
-      ((reduced, failure):_) -> addToCounterExample reduced failure
+      Nothing -> Success
+      Just (reduced, failure) -> addToCounterExample reduced failure
 
 treePostWalk :: a -> (a -> [a]) -> [a]
 treePostWalk root leaves = visit [root] where
