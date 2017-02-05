@@ -103,13 +103,22 @@ forAll argGen argShrink prop =
 shrinking :: (Show a, Testable testable) => (a -> [a]) -> a -> (a -> testable) -> StdGen -> Result
 shrinking shrink arg prop rand =
   let smaller = shrinkPostWalk arg shrink
-      result = foldMap (\a -> runProp (property (prop a)) rand) smaller
-  in overFailure result $ \failure ->
-        failure { counterExample = show arg : counterExample failure }
+      results =
+        dropWhile (isSuccess . snd) $
+          map (\a -> (a, runProp (property (prop a)) rand)) smaller
+  in case results of
+      [] -> Success
+      ((arg', failure):_) ->
+        failure { counterExample = show arg' : counterExample failure }
 
+isSuccess :: Result -> Bool
+isSuccess Success = True
+isSuccess _ = False
 
 shrinkPostWalk :: a -> (a -> [a]) -> [a]
-shrinkPostWalk initial shrink = shrink initial -- TODO: do it correctly
+shrinkPostWalk initial shrink = go [initial] where
+  go [] = []
+  go xs = concat [go (shrink x') | x' <- xs] ++ xs
 
 
 --------------------------------------------------------------------------------
@@ -147,8 +156,11 @@ instance Arbitrary Int where
 instance Arbitrary Integer where
   arbitrary = Gen $ \rand -> fromIntegral $ fst (next rand)
   shrink n
-    | abs n < 2 = []
-    | otherwise = [abs n, div n 2, div n 2 + 1]
+    | n == 0 = []
+    | otherwise =
+      [abs n | n < 0]
+      ++ 0 : takeWhile (\m -> abs m < abs n)
+              [ n - i | i <- tail (iterate (`quot` 2) n)]
 
 instance Arbitrary Bool where
   arbitrary = Gen $ \rand -> odd (fst (next rand))
@@ -188,7 +200,7 @@ perturb n rand0 =
     digits =
       map ((== 0) . (`mod` 2))
       . takeWhile (> 0)
-      . iterate (`div` 2)
+      . iterate (`quot` 2)
 
 variants :: StdGen -> [StdGen]
 variants rand = rand1 : variants rand2
