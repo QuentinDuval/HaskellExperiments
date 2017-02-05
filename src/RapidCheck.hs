@@ -109,12 +109,11 @@ forAll argGen argShrink prop =
 shrinking :: (Show a, Testable testable) => (a -> [a]) -> a -> (a -> testable) -> StdGen -> Result
 shrinking shrink arg prop rand =
   let smaller = treePostWalk arg shrink
-      results =
-        dropWhile (isSuccess . snd) $
-          map (\a -> (a, runProp (property (prop a)) rand)) smaller
-  in case results of
+      results = map (\a -> (a, runProp (property (prop a)) rand)) smaller
+      failures = dropWhile (isSuccess . snd) results
+  in case failures of
       [] -> Success
-      ((arg', failure):_) -> addToCounterExample arg' failure
+      ((reduced, failure):_) -> addToCounterExample reduced failure
 
 treePostWalk :: a -> (a -> [a]) -> [a]
 treePostWalk root leaves = visit [root] where
