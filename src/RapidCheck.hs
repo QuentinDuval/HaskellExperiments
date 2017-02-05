@@ -4,6 +4,7 @@ module RapidCheck where
 
 import Control.Monad
 import Data.List
+import Data.Monoid((<>))
 import System.Random
 import Text.Show.Functions
 
@@ -89,18 +90,23 @@ forAll argGen argShrink prop =
         arg = runGen argGen rand1       -- Use the first generator to produce an arg
         subProp = property (prop arg)   -- Use the `a` to access the sub-property
         result = runProp subProp rand2  -- Use the second generator to run it
-    in overFailure result $ \failure ->
-        let arg' = shrinking argShrink arg prop
-        in failure { counterExample =
-            show arg' : counterExample failure } -- Enrich the result with the argument
+    in overFailure result $
+          \failure ->
+            shrinking argShrink arg prop rand2
+            <> failure { counterExample = show arg : counterExample failure }
 
 
 --------------------------------------------------------------------------------
 -- Shrinking process
 --------------------------------------------------------------------------------
 
-shrinking :: (a -> [a]) -> a -> (a -> testable) -> a
-shrinking shrink a prop = a
+shrinking :: (Show a, Testable testable) => (a -> [a]) -> a -> (a -> testable) -> StdGen -> Result
+shrinking shrink arg prop rand =
+  let smaller = shrinkPostWalk arg shrink
+      result = foldMap (\a -> runProp (property (prop a)) rand) smaller
+  in overFailure result $ \failure ->
+        failure { counterExample = show arg : counterExample failure }
+
 
 shrinkPostWalk :: a -> (a -> [a]) -> [a]
 shrinkPostWalk initial shrink = shrink initial -- TODO: do it correctly
@@ -140,6 +146,9 @@ instance Arbitrary Int where
 
 instance Arbitrary Integer where
   arbitrary = Gen $ \rand -> fromIntegral $ fst (next rand)
+  shrink n
+    | abs n < 2 = []
+    | otherwise = [abs n, div n 2, div n 2 + 1]
 
 instance Arbitrary Bool where
   arbitrary = Gen $ \rand -> odd (fst (next rand))
@@ -190,6 +199,9 @@ variants rand = rand1 : variants rand2
 -- TEST: run them with runTests
 --------------------------------------------------------------------------------
 
+prop_stupid :: Integer -> Integer -> Bool
+prop_stupid a b = a == b
+
 prop_gcd :: Integer -> Integer -> Bool
 prop_gcd a b = a * b == gcd a b * lcm a b
 
@@ -220,6 +232,7 @@ prop_distributive a b f = f (a + b) == f a + f b
 
 runTests :: IO ()
 runTests = do
+  print =<< rapidCheck prop_stupid
   print =<< rapidCheck prop_gcd
   print =<< rapidCheck prop_gcd_overflow
   failure <- rapidCheck prop_gcd_bad
