@@ -23,12 +23,15 @@ data Result
 instance Monoid Result where
   mempty = Success
   mappend f@Failure{} _ = f
-  mappend _ f@Failure{} = f
-  mappend _ _ = Success
+  mappend _ rhs = rhs
 
 overFailure :: Result -> (Result -> Result) -> Result
 overFailure Success _ = Success
 overFailure failure f = f failure
+
+isSuccess :: Result -> Bool
+isSuccess Success = True
+isSuccess _ = False
 
 
 --------------------------------------------------------------------------------
@@ -110,10 +113,6 @@ shrinking shrink arg prop rand =
       [] -> Success
       ((arg', failure):_) ->
         failure { counterExample = show arg' : counterExample failure }
-
-isSuccess :: Result -> Bool
-isSuccess Success = True
-isSuccess _ = False
 
 shrinkPostWalk :: a -> (a -> [a]) -> [a]
 shrinkPostWalk initial shrink = go [initial] where
