@@ -117,9 +117,9 @@ shrinking shrink arg prop rand =
       ((arg', failure):_) -> addToCounterExample arg' failure
 
 treePostWalk :: a -> (a -> [a]) -> [a]
-treePostWalk root leaves = go [root] where
-  go [] = []
-  go xs = concatMap (go . leaves) xs ++ xs
+treePostWalk root leaves = visit [root] where
+  visit [] = []
+  visit xs = concatMap (visit . leaves) xs ++ xs
 
 
 --------------------------------------------------------------------------------
