@@ -93,7 +93,8 @@ instance (Show a, Arbitrary a, Testable testable)
 -- forAll, the heart of property based testing
 --------------------------------------------------------------------------------
 
-forAll :: (Show a, Testable testable) => Gen a -> Shrinker a -> (a -> testable) -> Property
+forAll :: (Show a, Testable testable)
+          => Gen a -> Shrinker a -> (a -> testable) -> Property
 forAll argGen shrinker prop =
   Property $ Gen $ \rand ->             -- Create a new property that will
     let (rand1, rand2) = split rand     -- Split the generator in two
@@ -102,7 +103,7 @@ forAll argGen shrinker prop =
         result = runProp subProp rand2  -- Use the second generator to run it
     in overFailure result $ \failure ->     -- Handle the failure case:
         shrinkWith shrinker arg prop rand2  -- Attempt to shrink the counter example
-        <> addToCounterExample arg failure  -- In case the shrining failed
+        <> addToCounterExample arg failure  -- In case the shrinking failed
 
 
 --------------------------------------------------------------------------------
