@@ -48,6 +48,8 @@ runProp prop rand = runGen (getGen prop) rand
 
 class Arbitrary a where
   arbitrary :: Gen a
+  shrink :: a -> [a]
+  shrink _ = []
 
 class CoArbitrary a where
   coarbitrary :: Gen b -> a -> Gen b
@@ -73,22 +75,35 @@ instance Testable Bool where
 
 instance (Show a, Arbitrary a, Testable testable)
          => Testable (a -> testable) where
-  property = forAll arbitrary
+  property = forAll arbitrary shrink
 
 
 --------------------------------------------------------------------------------
 -- forAll, the heart of property based testing
 --------------------------------------------------------------------------------
 
-forAll :: (Show a, Testable testable) => Gen a -> (a -> testable) -> Property
-forAll argGen prop =
+forAll :: (Show a, Testable testable) => Gen a -> (a -> [a]) -> (a -> testable) -> Property
+forAll argGen argShrink prop =
   Property $ Gen $ \rand ->             -- Create a new property that will
     let (rand1, rand2) = split rand     -- Split the generator in two
         arg = runGen argGen rand1       -- Use the first generator to produce an arg
         subProp = property (prop arg)   -- Use the `a` to access the sub-property
         result = runProp subProp rand2  -- Use the second generator to run it
-    in overFailure result $ \failure -> -- Enrich the result with the argument
-        failure { counterExample = show arg : counterExample failure }
+    in overFailure result $ \failure ->
+        let arg' = shrinking argShrink arg prop
+        in failure { counterExample =
+            show arg' : counterExample failure } -- Enrich the result with the argument
+
+
+--------------------------------------------------------------------------------
+-- Shrinking process
+--------------------------------------------------------------------------------
+
+shrinking :: (a -> [a]) -> a -> (a -> testable) -> a
+shrinking shrink a prop = a
+
+shrinkPostWalk :: a -> (a -> [a]) -> [a]
+shrinkPostWalk initial shrink = shrink initial -- TODO: do it correctly
 
 
 --------------------------------------------------------------------------------
