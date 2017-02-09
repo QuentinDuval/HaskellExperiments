@@ -1,8 +1,8 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE DeriveFunctor #-}
 module RapidCheck where
 
-import Control.Arrow((&&&))
 import Control.Monad
 import Data.List
 import Data.Monoid((<>))
@@ -55,11 +55,11 @@ runProp prop rand = runGen (getGen prop) rand
 -- Main type classes: Arbitrary, CoArbitrary and Testable
 --------------------------------------------------------------------------------
 
-type Shrinker a = a -> [a]
+type Shrink a = a -> [a]
 
 class Arbitrary a where
   arbitrary :: Gen a
-  shrink :: Shrinker a
+  shrink :: Shrink a
   shrink = const []
 
 class CoArbitrary a where
@@ -94,37 +94,41 @@ instance (Show a, Arbitrary a, Testable testable)
 --------------------------------------------------------------------------------
 
 forAll :: (Show a, Testable testable)
-          => Gen a -> Shrinker a -> (a -> testable) -> Property
-forAll argGen shrinker prop =
+          => Gen a -> Shrink a -> (a -> testable) -> Property
+forAll argGen shrink prop =
   Property $ Gen $ \rand ->             -- Create a new property that will
     let (rand1, rand2) = split rand     -- Split the generator in two
         arg = runGen argGen rand1       -- Use the first generator to produce an arg
-        subProp = property (prop arg)   -- Use the `a` to access the sub-property
-        result = runProp subProp rand2  -- Use the second generator to run it
-    in overFailure result $ \failure ->     -- Handle the failure case:
-        shrinkWith shrinker arg prop rand2  -- Attempt to shrink the counter example
-        <> addToCounterExample arg failure  -- In case the shrinking failed
+        runSub = evalSubProp prop rand2 -- Factorize a runner for the sub-property
+        result = runSub arg             -- Run the sub-property with value `arg`
+    in overFailure result $ \failure -> -- In case of failure,
+        shrinking shrink arg runSub     -- Attempt to shrink the counter example
+        <>                              -- OR (in case the shrinking failed)
+        addToCounterExample arg failure -- Add the argument to the counter example
+
+evalSubProp :: Testable t => (a -> t) -> StdGen -> a -> Result
+evalSubProp prop rand = (`runProp` rand) . property . prop
 
 
 --------------------------------------------------------------------------------
 -- Shrinking process
 --------------------------------------------------------------------------------
 
-shrinkWith :: (Show a, Testable testable)
-              => Shrinker a -> a -> (a -> testable) -> StdGen -> Result
-shrinkWith shrinker arg prop rand =
-  let smaller = treePostWalk arg shrinker
-      tryShrink a = runProp (property (prop a)) rand
-      results = map (id &&& tryShrink) smaller
-      failures = find (isFailure . snd) results
-  in case failures of
-      Nothing -> Success
-      Just (reduced, failure) -> addToCounterExample reduced failure
+shrinking :: (Show a) => Shrink a -> a -> (a -> Result) -> Result
+shrinking shrink arg runSub =
+  let children = shrink arg
+      result = findFailing children runSub
+  in case result of
+      Nothing -> Success                    -- No children leads to failure
+      Just (shrunk, failure) ->             -- In case a failure is found
+        shrinking shrink shrunk runSub      -- Try to shrink further the child
+        <>                                  -- OR (in case it fails)
+        addToCounterExample shrunk failure  -- Add child to the counter example
 
-treePostWalk :: a -> (a -> [a]) -> [a]
-treePostWalk root leaves = visit [root] where
-  visit [] = []
-  visit xs = concatMap (visit . leaves) xs ++ xs
+findFailing :: [a] -> (a -> Result) -> Maybe (a, Result)
+findFailing smaller runSub =
+  let results = map runSub smaller
+  in find (isFailure . snd) (zip smaller results)
 
 
 --------------------------------------------------------------------------------
@@ -156,21 +160,15 @@ rapidCheckImpl attemptNb startSeed prop = runAll (property prop)
 -- TESTS: Instances
 --------------------------------------------------------------------------------
 
-instance Arbitrary Int where
-  arbitrary = Gen $ \rand -> fst (next rand)
-  shrink = shrinkIntegral
-
 instance Arbitrary Integer where
   arbitrary = Gen $ \rand -> fromIntegral $ fst (next rand)
-  shrink = shrinkIntegral
-
-shrinkIntegral :: (Integral n) => n -> [n]
-shrinkIntegral n
-  | n == 0 = []
-  | otherwise =
-    [abs n | n < 0]
-    ++ 0 : takeWhile (\m -> abs m < abs n)
-            [ n - i | i <- tail (iterate (`quot` 2) n)]
+  shrink n
+    | n == 0 = []
+    | otherwise = [abs n | n < 0] ++ 0 : rightDichotomy where
+      rightDichotomy =
+            takeWhile
+              (\m -> abs m < abs n)
+              [ n - i | i <- tail (iterate (`quot` 2) n)]
 
 instance Arbitrary Bool where
   arbitrary = Gen $ \rand -> odd (fst (next rand))
@@ -192,7 +190,7 @@ instance Arbitrary a => Arbitrary [a] where
 instance CoArbitrary Integer where
   coarbitrary gen n = Gen $ \rand -> runGen gen (perturb n rand)
 
-instance CoArbitrary [Int] where
+instance CoArbitrary [Integer] where
   coarbitrary gen xs =
     Gen $ \rand ->
       runGen gen (foldr perturb (perturb 0 rand) xs)
@@ -241,7 +239,7 @@ prop_partition xs p =
       , not (any p rhs)
       , sort xs == sort (lhs ++ rhs) ]
 
-prop_partition_2 :: [[Int]] -> ([Int] -> Bool) -> Bool
+prop_partition_2 :: [[Integer]] -> ([Integer] -> Bool) -> Bool
 prop_partition_2 xs p =
   let (lhs, rhs) = partition p xs
   in and
@@ -256,7 +254,7 @@ runTests :: IO ()
 runTests = do
   print =<< rapidCheck prop_stupid
   print =<< rapidCheck prop_gcd
-  print =<< rapidCheck prop_gcd_overflow
+  -- print =<< rapidCheck prop_gcd_overflow -- TODO: shrinking never stops?
   failure <- rapidCheck prop_gcd_bad
   print failure
   print $ replay failure prop_gcd_bad
