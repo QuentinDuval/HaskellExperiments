@@ -3,10 +3,8 @@
 {-# LANGUAGE DeriveFunctor #-}
 module RapidCheck where
 
-import Control.Monad
 import Data.List
 import Data.Monoid((<>))
-import System.IO.Unsafe(unsafePerformIO)
 import System.Random
 import Text.Show.Functions
 
@@ -34,10 +32,6 @@ overFailure failure f = f failure
 isFailure :: Result -> Bool
 isFailure Success = False
 isFailure _ = True
-
-addToCounterExample :: (Show a) => a -> Result -> Result
-addToCounterExample arg failure =
-  failure { counterExample = show arg : counterExample failure }
 
 
 --------------------------------------------------------------------------------
@@ -136,15 +130,6 @@ buildTree :: Shrink a -> a -> Tree a
 buildTree shrinker = build where
   build x = Tree x (map build (shrinker x))
 
-{-
-resultTree :: (Show a, Testable testable) => Shrink a -> a -> (a -> testable) -> Property
-resultTree shrinker arg prop =
-  Property $ Gen $ \rand ->
-    let children x = Tree (logTree x) (map children (shrinker x))
-        subTree x = runProp (property (prop x)) rand
-        logTree x = fmap (\r -> overFailure r (addToCounterExample x)) (subTree x)
-    in joinTree (children arg)
--}
 
 --------------------------------------------------------------------------------
 -- rapidCheck, our main entry point
@@ -248,11 +233,6 @@ prop_gcd a b = a * b == gcd a b * lcm a b
 
 prop_gcd_bad :: Integer -> Integer -> Bool
 prop_gcd_bad a b = gcd a b > 1
-{-
-  unsafePerformIO $ do
-    putStrLn $ show a ++ " " ++ show b
-    return $ gcd a b > 1
--}
 
 prop_gcd_overflow :: Int -> Int -> Bool
 prop_gcd_overflow a b = a * b == gcd a b * lcm a b
