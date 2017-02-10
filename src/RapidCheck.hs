@@ -6,6 +6,7 @@ module RapidCheck where
 import Control.Monad
 import Data.List
 import Data.Monoid((<>))
+import System.IO.Unsafe(unsafePerformIO)
 import System.Random
 import Text.Show.Functions
 
@@ -45,9 +46,19 @@ addToCounterExample arg failure =
 
 newtype Gen a = Gen { runGen :: StdGen -> a }
 
-newtype Property = Property { getGen :: Gen Result }
+data Tree a = Tree
+  { treeVal :: a
+  , children :: [Tree a] }
+  deriving (Functor)
 
-runProp :: Property -> StdGen -> Result
+joinTree :: Tree (Tree Result) -> Tree Result
+joinTree (Tree (Tree innerArgResult innerArgShrinks) outerArgShrinks) =
+  Tree innerArgResult
+       (map joinTree outerArgShrinks ++ innerArgShrinks)
+
+newtype Property = Property { getGen :: Gen (Tree Result) }
+
+runProp :: Property -> StdGen -> Tree Result
 runProp prop rand = runGen (getGen prop) rand
 
 
@@ -77,7 +88,7 @@ instance Testable Property where
   property = id
 
 instance Testable Result where
-  property r = Property (Gen (const r))
+  property r = Property (Gen (\_ -> Tree r []))
 
 instance Testable Bool where
   property = property . toResult where
@@ -96,40 +107,44 @@ instance (Show a, Arbitrary a, Testable testable)
 forAll :: (Show a, Testable testable)
           => Gen a -> Shrink a -> (a -> testable) -> Property
 forAll argGen shrink prop =
-  Property $ Gen $ \rand ->             -- Create a new property that will
-    let (rand1, rand2) = split rand     -- Split the generator in two
-        arg = runGen argGen rand1       -- Use the first generator to produce an arg
-        runSub = evalSubProp prop rand2 -- Factorize a runner for the sub-property
-        result = runSub arg             -- Run the sub-property with value `arg`
-    in overFailure result $ \failure -> -- In case of failure,
-        shrinking shrink arg runSub     -- Attempt to shrink the counter example
-        <>                              -- OR (in case the shrinking failed)
-        addToCounterExample arg failure -- Add the argument to the counter example
-
-evalSubProp :: Testable t => (a -> t) -> StdGen -> a -> Result
-evalSubProp prop rand = (`runProp` rand) . property . prop
+  Property $ Gen $ \rand ->               -- Create a new property that will
+    let (rand1, rand2) = split rand       -- Split the generator in two
+        arg = runGen argGen rand1         -- Use the first generator to produce an arg
+        tree = resultTree shrink arg prop -- Enrich the sub-property result tree
+    in runProp tree rand2                 -- Run the property with the second generator
 
 
 --------------------------------------------------------------------------------
 -- Shrinking process
 --------------------------------------------------------------------------------
 
-shrinking :: (Show a) => Shrink a -> a -> (a -> Result) -> Result
-shrinking shrink arg runSub =
-  let children = shrink arg
-      result = findFailing children runSub
-  in case result of
-      Nothing -> Success                    -- No children leads to failure
-      Just (shrunk, failure) ->             -- In case a failure is found
-        shrinking shrink shrunk runSub      -- Try to shrink further the child
-        <>                                  -- OR (in case it fails)
-        addToCounterExample shrunk failure  -- Add child to the counter example
+resultTree :: (Show a, Testable t) => Shrink a -> a -> (a -> t) -> Property
+resultTree shrinker arg prop =
+  Property $ Gen $ \rand ->
+    let shrinkTree = buildTree shrinker arg   -- Build the shrink tree
+        resultTree = fmap toResult shrinkTree -- Transform it to a result tree
+        toResult x =                          -- To compute a result tree
+          addCounterExample x $               -- Add the outer arg to all failures
+            runProp (property (prop x)) rand  -- Inside the sub result tree
+    in joinTree resultTree                    -- At the end, join the result tree
 
-findFailing :: [a] -> (a -> Result) -> Maybe (a, Result)
-findFailing smaller runSub =
-  let results = map runSub smaller
-  in find (isFailure . snd) (zip smaller results)
+addCounterExample :: (Show a) => a -> Tree Result -> Tree Result
+addCounterExample arg = fmap (\r -> overFailure r addToFailure)
+  where addToFailure f = f { counterExample = show arg : counterExample f }
 
+buildTree :: Shrink a -> a -> Tree a
+buildTree shrinker = build where
+  build x = Tree x (map build (shrinker x))
+
+{-
+resultTree :: (Show a, Testable testable) => Shrink a -> a -> (a -> testable) -> Property
+resultTree shrinker arg prop =
+  Property $ Gen $ \rand ->
+    let children x = Tree (logTree x) (map children (shrinker x))
+        subTree x = runProp (property (prop x)) rand
+        logTree x = fmap (\r -> overFailure r (addToCounterExample x)) (subTree x)
+    in joinTree (children arg)
+-}
 
 --------------------------------------------------------------------------------
 -- rapidCheck, our main entry point
@@ -152,8 +167,14 @@ rapidCheckImpl attemptNb startSeed prop = runAll (property prop)
   where
     runAll prop = foldMap (runOne prop) [startSeed .. startSeed + attemptNb - 1]
     runOne prop seed =
-      let result = runProp prop (mkStdGen seed)
+      let result = visitResultTree (runProp prop (mkStdGen seed))
       in overFailure result $ \failure -> failure { seed = seed }
+
+visitResultTree :: Tree Result -> Result
+visitResultTree (Tree Success _) = Success
+visitResultTree (Tree failure children) =
+  let simplerFailure = find (isFailure . treeVal) children
+  in maybe failure visitResultTree simplerFailure
 
 
 --------------------------------------------------------------------------------
@@ -227,6 +248,11 @@ prop_gcd a b = a * b == gcd a b * lcm a b
 
 prop_gcd_bad :: Integer -> Integer -> Bool
 prop_gcd_bad a b = gcd a b > 1
+{-
+  unsafePerformIO $ do
+    putStrLn $ show a ++ " " ++ show b
+    return $ gcd a b > 1
+-}
 
 prop_gcd_overflow :: Int -> Int -> Bool
 prop_gcd_overflow a b = a * b == gcd a b * lcm a b
