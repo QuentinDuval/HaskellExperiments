@@ -221,11 +221,14 @@ genCstExpr = opsGen genCst
 --------------------------------------------------------------------------------
 
 prop_optimize :: Property
-prop_optimize =
-  forAll (genCstExpr 30) $ \e ->
-    case optimize e of
-      (Fix (Cst n)) -> True
-      _ -> False
+prop_optimize = forAll (genCstExpr 30) (isCst . optimize)
+
+prop_partial_dependencies :: Property
+prop_partial_dependencies =
+  forAll (genExpr 30) $ \e ->
+    let deps = dependencies e
+        env = Map.fromList $ zip (Set.toList deps) [1..]
+    in isCst (partial env e)
 
 -- TODO: evaluating whether the reduction of optimize is worth it
 -- TODO: evaluating whether the eval partial works fine
@@ -234,5 +237,8 @@ generatorFun :: IO ()
 generatorFun = do
   print =<< generate (fmap prn $ genExpr 10)
   print =<< generate (fmap prn $ genCstExpr 10)
+  quickCheck prop_optimize
+  quickCheck prop_partial_dependencies
+
 
 --
