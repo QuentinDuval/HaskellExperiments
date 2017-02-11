@@ -260,7 +260,9 @@ stupidGen = do
   name <- nameGen
   let deps = Set.toList (dependencies e)
   return $
-    "(defn " ++ name ++ " [" ++ (unwords deps) ++ "] "
+    "(defn "
+    ++ name
+    ++ " [" ++ (unwords deps) ++ "] "
     ++ prn e
     ++ ")"
 
