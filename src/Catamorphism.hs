@@ -181,7 +181,9 @@ testExpr = do
   print $ "(+ 3 (* 2 y) x)" == prn o
 
 
+--------------------------------------------------------------------------------
 -- Quick Check tests
+--------------------------------------------------------------------------------
 
 instance Arbitrary Expr where
   arbitrary = sized genExpr
@@ -213,10 +215,24 @@ opsGen termGen = go where
 genExpr :: Int -> Gen Expr
 genExpr = opsGen genOneTerm
 
-genExprStr :: Int -> Gen String
-genExprStr = fmap prn . genExpr
+genCstExpr :: Int -> Gen Expr
+genCstExpr = opsGen genCst
+
+--------------------------------------------------------------------------------
+
+prop_optimize :: Property
+prop_optimize =
+  forAll (genCstExpr 30) $ \e ->
+    case optimize e of
+      (Fix (Cst n)) -> True
+      _ -> False
 
 -- TODO: evaluating whether the reduction of optimize is worth it
 -- TODO: evaluating whether the eval partial works fine
+
+generatorFun :: IO ()
+generatorFun = do
+  print =<< generate (fmap prn $ genExpr 10)
+  print =<< generate (fmap prn $ genCstExpr 10)
 
 --
