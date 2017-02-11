@@ -249,26 +249,28 @@ runProps = do
 
 --------------------------------------------------------------------------------
 
+makeFun :: String -> Expr -> String
+makeFun name e =
+  let deps = Set.toList (dependencies e)
+  in "(defn "
+      ++ name
+      ++ " [" ++ (unwords deps) ++ "] "
+      ++ prn e
+      ++ ")"
+
 nameGen :: Gen String
 nameGen = do
   n <- elements [5..10]
   replicateM n (elements ['a'..'z'])
 
-stupidGen :: Gen String
+stupidGen :: Gen [String]
 stupidGen = do
   e <- genExpr 30
   name <- nameGen
-  let deps = Set.toList (dependencies e)
-  return $
-    "(defn "
-    ++ name
-    ++ " [" ++ (unwords deps) ++ "] "
-    ++ prn e
-    ++ ")"
+  return [makeFun name e, makeFun name (optimize e)]
 
 runStupidGen :: IO ()
-runStupidGen = do
-  print =<< generate stupidGen
+runStupidGen = mapM_ print =<< generate stupidGen
 
 --------------------------------------------------------------------------------
 
