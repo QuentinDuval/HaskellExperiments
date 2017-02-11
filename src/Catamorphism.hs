@@ -200,7 +200,7 @@ genExpr n = do
     else do
       b <- arbitrary
       let op = if b then add else mul
-      rands <- replicateM m (genExpr (div n 2))
+      rands <- replicateM m (genExpr (div n (m + 1)))
       return (op rands)
 
 -- TODO: evaluating whether the reduction of optimize is worth it
