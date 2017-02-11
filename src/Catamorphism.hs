@@ -250,18 +250,43 @@ runProps = do
 
 --------------------------------------------------------------------------------
 
+countNodes :: Expr -> Int
+countNodes = cata countAlg where
+  countAlg (Op _ xs) = 1 + sum xs
+  countAlg _ = 1
+
+data Stats = Stats
+  { avgNodeCount :: Double
+  , avgStringLen :: Double
+  , sampleCount :: Int }
+  deriving (Show, Eq, Ord)
+
+instance Monoid Stats where
+  mempty = Stats 0 0 0
+  mappend lhs rhs =
+    let total = ((+) `on` sampleCount) lhs rhs
+        weight x = ((/) `on` fromIntegral) (sampleCount x) total
+        avgSum p = weight lhs * p lhs + weight rhs * p rhs
+    in Stats {
+        avgNodeCount = avgSum avgNodeCount,
+        avgStringLen = avgSum avgStringLen,
+        sampleCount = total }
+
+measureStats :: Expr -> Stats
+measureStats e =
+  let o = optimize e
+      fdiv = ((/) `on` fromIntegral)
+  in Stats {
+        avgNodeCount = fdiv (countNodes o) (countNodes e),
+        avgStringLen = fdiv (length (prn o)) (length (prn e)),
+        sampleCount = 1 }
+
 -- TODO: extract some statistics about optimization
 -- TODO: several statistics, then Fold library to do it in one pass
-statistics :: Gen Expr -> IO Double
+statistics :: Gen Expr -> IO Stats
 statistics gen = do
   expressions <- sample' gen
-  let optimized = map optimize expressions
-  let ratios = zipWith
-                ((/) `on` fromIntegral)
-                (map (length . prn) optimized)
-                (map (length . prn) expressions)
-  let (o, e) = foldl (\(o, e) r -> (o + r, e + 1)) (0.0, 0.0) ratios
-  return (o / e)
+  return $ foldMap measureStats expressions
 
 runStatistics :: IO ()
 runStatistics = do
