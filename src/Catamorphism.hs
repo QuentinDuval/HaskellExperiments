@@ -193,7 +193,7 @@ genCst = fmap cst arbitrary
 
 genVar :: Gen Expr
 genVar = fmap var varNames where
-  varNames = elements $ map (\x -> [x]) ['a'..'z']
+  varNames = elements [[v] | v <- ['a'..'z']]
 
 genOneTerm :: Gen Expr
 genOneTerm = do
