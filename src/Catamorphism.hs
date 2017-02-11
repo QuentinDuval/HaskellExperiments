@@ -280,12 +280,10 @@ measureStats e =
         avgStringLen = fdiv (length (prn o)) (length (prn e)),
         sampleCount = 1 }
 
--- TODO: extract some statistics about optimization
--- TODO: several statistics, then Fold library to do it in one pass
 statistics :: Gen Expr -> IO Stats
 statistics gen = do
   expressions <- sample' gen
-  return $ foldMap measureStats expressions
+  return (foldMap measureStats expressions)
 
 runStatistics :: IO ()
 runStatistics = do
