@@ -22,7 +22,6 @@ library
                      , FizzBuzz
                      , FoldMergeSort
                      , FreeMonad
-                     , Lib
                      , Range
                      , RapidCheck
                      , RMQ

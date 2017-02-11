@@ -3,7 +3,6 @@ module Main where
 import Criterion
 import Criterion.Main(defaultMain)
 import Data.Semigroup(Min(..))
-import Lib
 import qualified RMQ
 import RMQ(Range(..))
 import qualified RMQ2
@@ -15,11 +14,10 @@ import qualified Tree
 
 main :: IO ()
 main = do
-  someFunc
   testRMQ
   defaultMain [
-      testTreePerf
-    -- , testRMQPerf
+      -- testTreePerf,
+      testRMQPerf
     ]
 
 
