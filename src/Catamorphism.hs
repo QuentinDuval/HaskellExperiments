@@ -3,7 +3,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Catamorphism () where
 
-import Control.Arrow
 import Control.Monad.Cont
 import Data.Function(on)
 import Data.List
