@@ -3,7 +3,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Catamorphism () where
 
+import Control.Arrow
 import Control.Monad.Cont
+import Data.Function(on)
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
@@ -238,8 +240,6 @@ prop_partial_and_eval =
     let env = makeTestEnv (dependencies e)
     in cst (eval env e) == partial env e
 
--- TODO: extract some statistics about optimization
-
 runProps :: IO ()
 runProps = do
   print =<< generate (fmap prn $ genExpr 10)
@@ -248,5 +248,24 @@ runProps = do
   quickCheck prop_partial_dependencies
   quickCheck prop_partial_and_eval
 
+--------------------------------------------------------------------------------
+
+-- TODO: extract some statistics about optimization
+-- TODO: several statistics, then Fold library to do it in one pass
+statistics :: Gen Expr -> IO Double
+statistics gen = do
+  expressions <- sample' gen
+  let optimized = map optimize expressions
+  let ratios = zipWith
+                ((/) `on` fromIntegral)
+                (map (length . prn) optimized)
+                (map (length . prn) expressions)
+  let (o, e) = foldl (\(o, e) r -> (o + r, e + 1)) (0.0, 0.0) ratios
+  return (o / e)
+
+runStatistics :: IO ()
+runStatistics = do
+  print =<< statistics (genExpr 30)
+  print =<< statistics (genCstExpr 30)
 
 --
