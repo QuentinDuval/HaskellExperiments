@@ -220,25 +220,33 @@ genCstExpr = opsGen genCst
 
 --------------------------------------------------------------------------------
 
+makeTestEnv :: Set.Set String -> Env
+makeTestEnv deps = Map.fromList $ zip (Set.toList deps) [1..]
+
 prop_optimize :: Property
 prop_optimize = forAll (genCstExpr 30) (isCst . optimize)
 
 prop_partial_dependencies :: Property
 prop_partial_dependencies =
   forAll (genExpr 30) $ \e ->
-    let deps = dependencies e
-        env = Map.fromList $ zip (Set.toList deps) [1..]
+    let env = makeTestEnv (dependencies e)
     in isCst (partial env e)
 
--- TODO: evaluating whether the reduction of optimize is worth it
--- TODO: evaluating whether the eval partial works fine
+prop_partial_and_eval :: Property
+prop_partial_and_eval =
+  forAll (genExpr 30) $ \e ->
+    let env = makeTestEnv (dependencies e)
+    in cst (eval env e) == partial env e
 
-generatorFun :: IO ()
-generatorFun = do
+-- TODO: extract some statistics about optimization
+
+runProps :: IO ()
+runProps = do
   print =<< generate (fmap prn $ genExpr 10)
   print =<< generate (fmap prn $ genCstExpr 10)
   quickCheck prop_optimize
   quickCheck prop_partial_dependencies
+  quickCheck prop_partial_and_eval
 
 
 --
