@@ -241,11 +241,32 @@ prop_partial_and_eval =
 
 runProps :: IO ()
 runProps = do
-  print =<< generate (fmap prn $ genExpr 10)
-  print =<< generate (fmap prn $ genCstExpr 10)
+  print =<< generate (fmap prn $ genExpr 10) -- Generating expressions
+  print =<< generate (fmap prn $ genCstExpr 10) -- Allows to check soundness
   quickCheck prop_optimize
   quickCheck prop_partial_dependencies
   quickCheck prop_partial_and_eval
+
+--------------------------------------------------------------------------------
+
+nameGen :: Gen String
+nameGen = do
+  n <- elements [5..10]
+  replicateM n (elements ['a'..'z'])
+
+stupidGen :: Gen String
+stupidGen = do
+  e <- genExpr 30
+  name <- nameGen
+  let deps = Set.toList (dependencies e)
+  return $
+    "(defn " ++ name ++ " [" ++ (unwords deps) ++ "] "
+    ++ prn e
+    ++ ")"
+
+runStupidGen :: IO ()
+runStupidGen = do
+  print =<< generate stupidGen
 
 --------------------------------------------------------------------------------
 
