@@ -196,8 +196,8 @@ genVar :: Gen Expr
 genVar = fmap var varNames where
   varNames = elements [[v] | v <- ['a'..'z']]
 
-genOneTerm :: Gen Expr
-genOneTerm = do
+genSimpleTerm :: Gen Expr
+genSimpleTerm = do
   b <- arbitrary
   if b then genVar else genCst
 
@@ -214,7 +214,7 @@ opsGen termGen = go where
         return (op rands)
 
 genExpr :: Int -> Gen Expr
-genExpr = opsGen genOneTerm
+genExpr = opsGen genSimpleTerm
 
 genCstExpr :: Int -> Gen Expr
 genCstExpr = opsGen genCst
