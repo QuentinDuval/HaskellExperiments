@@ -186,22 +186,35 @@ testExpr = do
 instance Arbitrary Expr where
   arbitrary = sized genExpr
 
-varNames :: Gen String
-varNames = elements $ map (\x -> [x]) ['a'..'z']
+genCst :: Gen Expr
+genCst = fmap cst arbitrary
+
+genVar :: Gen Expr
+genVar = fmap var varNames where
+  varNames = elements $ map (\x -> [x]) ['a'..'z']
+
+genOneTerm :: Gen Expr
+genOneTerm = do
+  b <- arbitrary
+  if b then genVar else genCst
+
+opsGen :: Gen Expr -> Int -> Gen Expr
+opsGen termGen = go where
+  go n = do
+    m <- fmap (`mod` (n + 1)) arbitrary
+    if m == 0
+      then termGen
+      else do
+        b <- arbitrary
+        let op = if b then add else mul
+        rands <- replicateM m (go (div n (m + 1)))
+        return (op rands)
 
 genExpr :: Int -> Gen Expr
-genExpr n = do
-  m <- fmap (`mod` (n + 1)) arbitrary
-  if m == 0
-    then do
-      b <- arbitrary
-      if b then fmap var varNames
-           else fmap cst arbitrary
-    else do
-      b <- arbitrary
-      let op = if b then add else mul
-      rands <- replicateM m (genExpr (div n (m + 1)))
-      return (op rands)
+genExpr = opsGen genOneTerm
+
+genExprStr :: Int -> Gen String
+genExprStr = fmap prn . genExpr
 
 -- TODO: evaluating whether the reduction of optimize is worth it
 -- TODO: evaluating whether the eval partial works fine
