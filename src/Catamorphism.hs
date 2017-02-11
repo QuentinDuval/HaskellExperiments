@@ -202,11 +202,11 @@ genSimpleTerm = do
   if b then genVar else genCst
 
 opsGen :: Gen Expr -> Int -> Gen Expr
-opsGen termGen = go where
+opsGen simpleTermGen = go where
   go n = do
     m <- fmap (`mod` (n + 1)) arbitrary
     if m == 0
-      then termGen
+      then simpleTermGen
       else do
         b <- arbitrary
         let op = if b then add else mul
