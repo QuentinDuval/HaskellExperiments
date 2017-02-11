@@ -1,13 +1,14 @@
 {-# LANGUAGE DeriveFunctor, DeriveFoldable, DeriveTraversable #-}
+{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Catamorphism (
-
-) where
+module Catamorphism () where
 
 import Control.Monad.Cont
 import Data.List
 import qualified Data.Map as Map
 import qualified Data.Set as Set
+import Test.QuickCheck
+
 
 -- All in Data.Fix
 
@@ -26,6 +27,9 @@ type Expr = Fix ExprR -- Fix point of ExprR
 
 instance Eq (f (Fix f)) => Eq (Fix f) where
   a == b = unFix a == unFix b
+
+instance Show (f (Fix f)) => Show (Fix f) where
+  show e = show (unFix e)
 
 instance Functor ExprR where
   fmap _ (Cst c) = Cst c
@@ -175,5 +179,31 @@ testExpr = do
   print $ eval' env e
   print $ eval' env o
   print $ "(+ 3 (* 2 y) x)" == prn o
+
+
+-- Quick Check tests
+
+instance Arbitrary Expr where
+  arbitrary = sized genExpr
+
+varNames :: Gen String
+varNames = elements $ map (\x -> [x]) ['a'..'z']
+
+genExpr :: Int -> Gen Expr
+genExpr n = do
+  m <- fmap (`mod` (n + 1)) arbitrary
+  if m == 0
+    then do
+      b <- arbitrary
+      if b then fmap var varNames
+           else fmap cst arbitrary
+    else do
+      b <- arbitrary
+      let op = if b then add else mul
+      rands <- replicateM m (genExpr (div n 2))
+      return (op rands)
+
+-- TODO: evaluating whether the reduction of optimize is worth it
+-- TODO: evaluating whether the eval partial works fine
 
 --
