@@ -29,8 +29,8 @@ type Expr = Fix ExprR -- Fix point of ExprR
 instance Eq (f (Fix f)) => Eq (Fix f) where
   a == b = unFix a == unFix b
 
-instance Show (f (Fix f)) => Show (Fix f) where
-  show e = show (unFix e)
+instance Show Expr where
+  show = prn
 
 instance Functor ExprR where
   fmap _ (Cst c) = Cst c
@@ -243,17 +243,25 @@ prop_optimize_eval e =
   forAll genTotalEnv $ \env ->
     eval env e == eval env (optimize e)
 
-prop_partial_dependencies :: Property
-prop_partial_dependencies =
+prop_dependencies_allow_eval :: Property
+prop_dependencies_allow_eval =
   forAll (sized genExpr) $ \e ->
     forAll (makeEnvWith (dependencies e)) $ \env ->
       isCst (partial env e)
+      && cst (eval env e) == partial env e
 
-prop_partial_and_eval :: Property
-prop_partial_and_eval =
+makePartialEnv :: Set.Set Id -> Gen Env
+makePartialEnv deps = do
+  v <- elements (Set.toList deps)
+  makeEnvWith (Set.delete v deps)
+
+prop_missing_dependencies_forbid_eval :: Property
+prop_missing_dependencies_forbid_eval =
   forAll (sized genExpr) $ \e ->
-    forAll (makeEnvWith (dependencies e)) $ \env ->
-      cst (eval env e) == partial env e
+    let deps = dependencies e
+    in Set.size deps > 0 ==>
+        forAll (makePartialEnv deps) $ \env ->
+          not (isCst (partial env e))
 
 runProps :: IO ()
 runProps = do
@@ -262,8 +270,8 @@ runProps = do
   quickCheck prop_optimize_constant
   quickCheck prop_partial_constant
   quickCheck prop_optimize_eval
-  quickCheck prop_partial_dependencies
-  quickCheck prop_partial_and_eval
+  quickCheck prop_dependencies_allow_eval
+  quickCheck prop_missing_dependencies_forbid_eval -- will fail
 
 --------------------------------------------------------------------------------
 
