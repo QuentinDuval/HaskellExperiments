@@ -233,10 +233,10 @@ genTotalEnv = makeEnvWith (Set.fromList varNames)
 --------------------------------------------------------------------------------
 
 prop_optimize_constant :: Property
-prop_optimize_constant = forAll (genCstExpr 30) (isCst . optimize)
+prop_optimize_constant = forAll (sized genCstExpr) (isCst . optimize)
 
 prop_partial_constant :: Property
-prop_partial_constant = forAll (genCstExpr 30) (isCst . partial Map.empty)
+prop_partial_constant = forAll (sized genCstExpr) (isCst . partial Map.empty)
 
 prop_optimize_eval :: Expr -> Property
 prop_optimize_eval e =
@@ -245,13 +245,13 @@ prop_optimize_eval e =
 
 prop_partial_dependencies :: Property
 prop_partial_dependencies =
-  forAll (genExpr 30) $ \e ->
+  forAll (sized genExpr) $ \e ->
     forAll (makeEnvWith (dependencies e)) $ \env ->
       isCst (partial env e)
 
 prop_partial_and_eval :: Property
 prop_partial_and_eval =
-  forAll (genExpr 30) $ \e ->
+  forAll (sized genExpr) $ \e ->
     forAll (makeEnvWith (dependencies e)) $ \env ->
       cst (eval env e) == partial env e
 
