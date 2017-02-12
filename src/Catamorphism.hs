@@ -235,6 +235,9 @@ genTotalEnv = makeEnvWith (Set.fromList varNames)
 prop_optimize_constant :: Property
 prop_optimize_constant = forAll (genCstExpr 30) (isCst . optimize)
 
+prop_partial_constant :: Property
+prop_partial_constant = forAll (genCstExpr 30) (isCst . partial Map.empty)
+
 prop_optimize_eval :: Expr -> Property
 prop_optimize_eval e =
   forAll genTotalEnv $ \env ->
@@ -257,6 +260,7 @@ runProps = do
   print =<< generate (fmap prn $ genExpr 10) -- Generating expressions
   print =<< generate (fmap prn $ genCstExpr 10) -- Allows to check soundness
   quickCheck prop_optimize_constant
+  quickCheck prop_partial_constant
   quickCheck prop_optimize_eval
   quickCheck prop_partial_dependencies
   quickCheck prop_partial_and_eval
