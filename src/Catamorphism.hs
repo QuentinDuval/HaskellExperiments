@@ -273,6 +273,9 @@ runProps = do
   quickCheck prop_dependencies_allow_eval
   quickCheck prop_missing_dependencies_forbid_eval -- will fail
 
+
+--------------------------------------------------------------------------------
+-- Generate clojure code
 --------------------------------------------------------------------------------
 
 makeFun :: String -> Expr -> String
@@ -298,6 +301,16 @@ stupidGen = do
 runStupidGen :: IO ()
 runStupidGen = mapM_ print =<< generate stupidGen
 
+
+--------------------------------------------------------------------------------
+-- TODO: Verify the soundness of your language
+--------------------------------------------------------------------------------
+
+
+
+
+--------------------------------------------------------------------------------
+-- Test statistical properties
 --------------------------------------------------------------------------------
 
 countNodes :: Expr -> Int
