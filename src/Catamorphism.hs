@@ -14,7 +14,7 @@ import Test.QuickCheck
 -- All in Data.Fix
 
 type Id = String
-type Env = Map.Map String Int
+newtype Env = Env { envMap :: Map.Map String Int } deriving (Show)
 data OpType = Add | Mul deriving (Show, Eq, Ord)
 
 data ExprR r
@@ -89,7 +89,7 @@ compAll fs = foldr1 comp fs
 eval :: Env -> Expr -> Int
 eval env = cata algebra where
   algebra (Cst n) = n
-  algebra (Var x) = env Map.! x
+  algebra (Var x) = (envMap env) Map.! x
   algebra (Op Add xs) = sum xs
   algebra (Op Mul xs) = product xs
 
@@ -133,7 +133,7 @@ optimize = cata (optimizeMul `comp` optimizeAdd)
 replaceKnownVars :: Env -> ExprR Expr -> Expr
 replaceKnownVars env = go where
   go e@(Var v) =
-    case Map.lookup v env of
+    case Map.lookup v (envMap env) of
       Just val -> cst val
       Nothing -> Fix e
   go e = Fix e
@@ -161,7 +161,7 @@ eval' env expr =
 
 testExpr :: IO ()
 testExpr = do
-  let env = Map.fromList [("x", 1), ("y", 2)]
+  let env = Env $ Map.fromList [("x", 1), ("y", 2)]
   let e = add [ cst(1)
               , cst(2)
               , mul [cst(0), var("x"), var("y")]
@@ -169,7 +169,7 @@ testExpr = do
               , add [cst(0), var("x") ]
               ]
   let o = optimize e
-  let f = partial (Map.fromList [("y", 0)]) e
+  let f = partial (Env $ Map.fromList [("y", 0)]) e
   print $ prn e
   print $ prn o
   print $ prn f
@@ -189,12 +189,22 @@ testExpr = do
 instance Arbitrary Expr where
   arbitrary = sized genExpr
 
+instance Arbitrary Env where
+  arbitrary = genTotalEnv
+
 genCst :: Gen Expr
 genCst = fmap cst arbitrary
 
+varNames :: [String]
+varNames = [[v] | v <- ['a'..'z']]
+
 genVar :: Gen Expr
-genVar = fmap var varNames where
-  varNames = elements [[v] | v <- ['a'..'z']]
+genVar = fmap var (elements varNames)
+
+genTotalEnv :: Gen Env
+genTotalEnv = do
+  vals <- replicateM (length varNames) arbitrary
+  return $ Env $ Map.fromList (zip varNames vals)
 
 genSimpleTerm :: Gen Expr
 genSimpleTerm = do
@@ -222,10 +232,13 @@ genCstExpr = opsGen genCst
 --------------------------------------------------------------------------------
 
 makeTestEnv :: Set.Set String -> Env
-makeTestEnv deps = Map.fromList $ zip (Set.toList deps) [1..]
+makeTestEnv deps = Env $ Map.fromList $ zip (Set.toList deps) [1..]
 
-prop_optimize :: Property
-prop_optimize = forAll (genCstExpr 30) (isCst . optimize)
+prop_optimize_constant :: Property
+prop_optimize_constant = forAll (genCstExpr 30) (isCst . optimize)
+
+prop_optimize_eval :: Expr -> Env -> Bool
+prop_optimize_eval e env = eval env e == eval env (optimize e)
 
 prop_partial_dependencies :: Property
 prop_partial_dependencies =
@@ -243,7 +256,8 @@ runProps :: IO ()
 runProps = do
   print =<< generate (fmap prn $ genExpr 10) -- Generating expressions
   print =<< generate (fmap prn $ genCstExpr 10) -- Allows to check soundness
-  quickCheck prop_optimize
+  quickCheck prop_optimize_constant
+  quickCheck prop_optimize_eval
   quickCheck prop_partial_dependencies
   quickCheck prop_partial_and_eval
 
