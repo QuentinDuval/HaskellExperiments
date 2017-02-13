@@ -14,8 +14,11 @@ import Test.QuickCheck
 -- All in Data.Fix
 
 type Id = String
-type Env = Map.Map String Int
-data OpType = Add | Mul deriving (Show, Eq, Ord)
+type Env = Map.Map Id Int
+data OpType
+  = Add
+  | Mul
+  deriving (Show, Eq, Ord)
 
 data ExprR r
   = Cst Int
