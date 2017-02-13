@@ -279,8 +279,8 @@ runProps = do
   quickCheck prop_partial_constant
   quickCheck prop_optimize_eval
   quickCheck prop_dependencies_allow_eval
-  quickCheck prop_missing_dependencies_forbid_eval -- will fail
-  quickCheck prop_optimize_preserves_dependencies -- will fail too
+  quickCheck (expectFailure prop_missing_dependencies_forbid_eval)
+  quickCheck (expectFailure prop_optimize_preserves_dependencies)
 
 
 --------------------------------------------------------------------------------
