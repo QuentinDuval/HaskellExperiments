@@ -266,6 +266,11 @@ prop_missing_dependencies_forbid_eval =
         forAll (makePartialEnv deps) $ \env ->
           not (isCst (partial env e))
 
+prop_optimize_preserves_dependencies :: Property
+prop_optimize_preserves_dependencies =
+  forAll (sized genExpr) $ \e ->
+    dependencies e == dependencies (optimize e)
+
 runProps :: IO ()
 runProps = do
   print =<< generate (fmap prn $ genExpr 10) -- Generating expressions
@@ -275,6 +280,7 @@ runProps = do
   quickCheck prop_optimize_eval
   quickCheck prop_dependencies_allow_eval
   quickCheck prop_missing_dependencies_forbid_eval -- will fail
+  quickCheck prop_optimize_preserves_dependencies -- will fail too
 
 
 --------------------------------------------------------------------------------
