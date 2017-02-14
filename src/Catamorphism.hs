@@ -300,7 +300,10 @@ genName = do
   replicateM n (elements ['a'..'z'])
 
 clojureFunctionGen :: Int -> Gen String
-clojureFunctionGen size = toClojureFunction <$> genName <*> genExpr size
+clojureFunctionGen size =
+  toClojureFunction
+    <$> genName
+    <*> fmap optimize (genExpr size)
 
 runStupidGen :: IO ()
 runStupidGen = mapM_ print =<< generate (clojureFunctionGen 30)
