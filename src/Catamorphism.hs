@@ -287,28 +287,23 @@ runProps = do
 -- Generate clojure code
 --------------------------------------------------------------------------------
 
-makeFun :: String -> Expr -> String
-makeFun name e =
-  let deps = Set.toList (dependencies e)
-  in "(defn "
-      ++ name
-      ++ " [" ++ (unwords deps) ++ "] "
-      ++ prn e
-      ++ ")"
+toClojureFunction :: String -> Expr -> String
+toClojureFunction name e =
+  unwords
+    ["(defn", name,
+     "[" ++ unwords (Set.toList $ dependencies e) ++ "]",
+     prn e, ")"]
 
-nameGen :: Gen String
-nameGen = do
+genName :: Gen String
+genName = do
   n <- elements [5..10]
   replicateM n (elements ['a'..'z'])
 
-stupidGen :: Gen [String]
-stupidGen = do
-  e <- genExpr 30
-  name <- nameGen
-  return [makeFun name e, makeFun name (optimize e)]
+clojureFunctionGen :: Int -> Gen String
+clojureFunctionGen size = toClojureFunction <$> genName <*> genExpr size
 
 runStupidGen :: IO ()
-runStupidGen = mapM_ print =<< generate stupidGen
+runStupidGen = mapM_ print =<< generate (clojureFunctionGen 30)
 
 
 --------------------------------------------------------------------------------
