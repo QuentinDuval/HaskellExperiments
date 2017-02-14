@@ -326,7 +326,7 @@ countNodes = cata countAlg where
   countAlg _ = 1
 
 data Stats = Stats
-  { avgNodeCount :: Double
+  { avgNodeCount :: Double -- TODO: just sum the full integers
   , avgStringLen :: Double
   , sampleCount :: Int }
   deriving (Show, Eq, Ord)
