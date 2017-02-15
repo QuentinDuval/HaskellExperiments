@@ -332,7 +332,12 @@ runInfix = do
 
 runInfixDbg :: IO ()
 runInfixDbg = do
-  e <- fmap optimize $ generate (genExpr 30)
+  let e = add [ cst(1)
+              , cst(2)
+              , mul [cst(0), var("x"), var("y")]
+              , mul [cst(1), var("y"), add [cst(2), var("x")]]
+              , add [cst(0), var("x") ]
+              ]
   print (prn e)
   print (prnInfix e)
 
