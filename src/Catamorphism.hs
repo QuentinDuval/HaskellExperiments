@@ -312,11 +312,15 @@ para :: (ExprR (a, Expr) -> a) -> Expr -> a
 para alg = alg . fmap (para alg &&& id) . unFix
 
 prnInfix :: Expr -> String
-prnInfix = cata infixAlg where
-  infixAlg (Op Add xs) = "(" ++ concat (intersperse " + " xs) ++ ")"
-  infixAlg (Op Mul xs) = concat (intersperse " * " xs)
+prnInfix = para infixAlg where
+
+  infixAlg (Op Add xs) = concat (intersperse " + " (map fst xs))
+  infixAlg (Op Mul xs) = concat (intersperse " * " (map parensPlus xs))
   infixAlg (Cst n) = show n
   infixAlg (Var v) = v
+
+  parensPlus (s, Fix (Op Add _)) = "(" ++ s ++ ")"
+  parensPlus (s, _) = s
 
 runInfix :: IO ()
 runInfix = do
