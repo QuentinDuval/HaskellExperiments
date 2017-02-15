@@ -3,6 +3,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Catamorphism () where
 
+import Control.Arrow
 import Control.Monad.Cont
 import Data.Function(on)
 import Data.List
@@ -304,14 +305,36 @@ runStupidGen = mapM_ print =<< generate (clojureFunctionGen 30)
 
 
 --------------------------------------------------------------------------------
--- TODO: Verify the soundness of your language
+-- Count number of parenthese of Clojure vs parentheses of other languages
 --------------------------------------------------------------------------------
 
+para :: (ExprR (a, Expr) -> a) -> Expr -> a
+para alg = alg . fmap (para alg &&& id) . unFix
 
+prnInfix :: Expr -> String
+prnInfix = cata infixAlg where
+  infixAlg (Op Add xs) = "(" ++ concat (intersperse " + " xs) ++ ")"
+  infixAlg (Op Mul xs) = concat (intersperse " * " xs)
+  infixAlg (Cst n) = show n
+  infixAlg (Var v) = v
+
+runInfix :: IO ()
+runInfix = do
+  expressions <- generate (replicateM 1000 (genExpr 30))
+  let optimized = map optimize expressions
+  let sizePrn = sum [length (prn e) | e <- optimized]
+  let sizeInfix = sum [length (prnInfix e) | e <- optimized]
+  print (fromIntegral sizePrn / fromIntegral sizeInfix)
+
+runInfixDbg :: IO ()
+runInfixDbg = do
+  e <- fmap optimize $ generate (genExpr 30)
+  print (prn e)
+  print (prnInfix e)
 
 
 --------------------------------------------------------------------------------
--- Test statistical properties
+-- Test statistical properties (2)
 --------------------------------------------------------------------------------
 
 countNodes :: Expr -> Int
