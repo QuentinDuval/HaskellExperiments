@@ -326,9 +326,9 @@ runInfix :: IO ()
 runInfix = do
   expressions <- generate (replicateM 1000 (genExpr 30))
   let optimized = map optimize expressions
-  let sizePrn = sum [length (prn e) | e <- optimized]
+  let sizePrefix = sum [length (prn e) | e <- optimized]
   let sizeInfix = sum [length (prnInfix e) | e <- optimized]
-  print (fromIntegral sizePrn / fromIntegral sizeInfix)
+  print (fromIntegral sizePrefix / fromIntegral sizeInfix)
 
 runInfixDbg :: IO ()
 runInfixDbg = do
