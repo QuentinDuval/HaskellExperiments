@@ -202,21 +202,15 @@ genVar :: Gen Expr
 genVar = fmap var (elements varNames)
 
 genSimpleTerm :: Gen Expr
-genSimpleTerm = do
-  b <- arbitrary
-  if b then genVar else genCst
+genSimpleTerm = oneof [genVar, genCst]
 
 opsGen :: Gen Expr -> Int -> Gen Expr
 opsGen simpleTermGen = go where
   go n = do
-    m <- fmap (`mod` (n + 1)) arbitrary
+    m <- choose (0, n)
     if m == 0
       then simpleTermGen
-      else do
-        b <- arbitrary
-        let op = if b then add else mul
-        rands <- replicateM m (go (div n (m + 1)))
-        return (op rands)
+      else elements [add, mul] <*> replicateM m (go (div n (m + 1)))
 
 genExpr :: Int -> Gen Expr
 genExpr = opsGen genSimpleTerm
