@@ -330,11 +330,15 @@ prnInfix = para infixAlg where
   parensPlus (s, Fix (Op Add _)) = "(" ++ s ++ ")"
   parensPlus (s, _) = s
 
+data ContestResult
+  = ContestResult { prefixScore :: Int, infixScore :: Int }
+  deriving (Show)
+
 runContest :: Int -> IO ()
 runContest size = do
   expressions <- generate (replicateM 1000 (genExpr size))
   let run printer = sum $ map (length . printer . optimize) expressions
-  print (fromIntegral (run prn) / fromIntegral (run prnInfix))
+  print $ ContestResult (run prn) (run prnInfix)
 
 runInfixDbg :: IO ()
 runInfixDbg = do
