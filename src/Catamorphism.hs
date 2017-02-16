@@ -330,13 +330,11 @@ prnInfix = para infixAlg where
   parensPlus (s, Fix (Op Add _)) = "(" ++ s ++ ")"
   parensPlus (s, _) = s
 
-runInfix :: IO ()
-runInfix = do
-  expressions <- generate (replicateM 1000 (genExpr 30))
-  let optimized = map optimize expressions
-  let sizePrefix = sum [length (prn e) | e <- optimized]
-  let sizeInfix = sum [length (prnInfix e) | e <- optimized]
-  print (fromIntegral sizePrefix / fromIntegral sizeInfix)
+runContest :: Int -> IO ()
+runContest size = do
+  expressions <- generate (replicateM 1000 (genExpr size))
+  let run printer = sum $ map (length . printer . optimize) expressions
+  print (fromIntegral (run prn) / fromIntegral (run prnInfix))
 
 runInfixDbg :: IO ()
 runInfixDbg = do
