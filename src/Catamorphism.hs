@@ -308,6 +308,14 @@ runStupidGen = mapM_ print =<< generate (clojureFunctionGen 30)
 -- Count number of parenthese of Clojure vs parentheses of other languages
 --------------------------------------------------------------------------------
 
+prnInfix' :: Expr -> String
+prnInfix' = cata infixAlg where
+  infixAlg (Op Add xs) = concat (intersperse " + " xs)
+  infixAlg (Op Mul xs) = concat (intersperse " * " (map parens xs))
+  infixAlg (Cst n) = show n
+  infixAlg (Var v) = v
+  parens x = "(" ++ x ++ ")"
+
 para :: (ExprR (a, Expr) -> a) -> Expr -> a
 para alg = alg . fmap (para alg &&& id) . unFix
 
@@ -336,9 +344,9 @@ runInfixDbg = do
               , cst(2)
               , mul [cst(0), var("x"), var("y")]
               , mul [cst(1), var("y"), add [cst(2), var("x")]]
-              , add [cst(0), var("x") ]
-              ]
+              , add [cst(0), var("x") ]]
   print (prn e)
+  print (prnInfix' e)
   print (prnInfix e)
 
 
