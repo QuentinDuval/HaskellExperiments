@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 module Fibonacci where
 
 fiboIterate :: Int -> Integer
@@ -7,6 +8,6 @@ fiboIterate n = fst (iterate next (0, 1) !! n)
 fiboRecur :: Int -> Integer
 fiboRecur = loop 0 1
   where
-    loop curr next n
+    loop !curr !next n
       | n == 0    = curr
       | otherwise = loop next (curr + next) (n - 1)
