@@ -25,9 +25,10 @@ main = do
 testFiboPerf :: Benchmark
 testFiboPerf =
   bgroup "Fibo" [
-    bench "Iterate" $ nf Fibonacci.fiboIterate 1000,
-    bench "Recur" $ nf Fibonacci.fiboRecur 1000
-    -- bench "Reduce" $ nf sum [1..1000 :: Int]
+    bench "Iterate1000" $ nf Fibonacci.fiboIterate 1000,
+    bench "Recur1000" $ nf Fibonacci.fiboRecur 1000,
+    bench "Iterate2000" $ nf Fibonacci.fiboIterate 2000,
+    bench "Recur2000" $ nf Fibonacci.fiboRecur 2000
     ]
 
 testTreePerf :: Benchmark
