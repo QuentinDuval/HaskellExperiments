@@ -3,6 +3,7 @@ module Main where
 import Criterion
 import Criterion.Main(defaultMain)
 import Data.Semigroup(Min(..))
+import qualified Fibonacci
 import qualified RMQ
 import RMQ(Range(..))
 import qualified RMQ2
@@ -17,9 +18,14 @@ main = do
   testRMQ
   defaultMain [
       -- testTreePerf,
-      testRMQPerf
+      -- testRMQPerf,
+      testFiboPerf
     ]
 
+testFiboPerf :: Benchmark
+testFiboPerf =
+  let n = 1000 :: Int
+  in bgroup "Fibo" [bench "Iterate" $ nf Fibonacci.fiboIterate n]
 
 testTreePerf :: Benchmark
 testTreePerf =
