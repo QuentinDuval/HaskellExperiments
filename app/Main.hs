@@ -3,7 +3,8 @@ module Main where
 import Criterion
 import Criterion.Main(defaultMain)
 import Data.Semigroup(Min(..))
-import qualified Fibonacci
+import qualified FiboIter
+import qualified FiboRecur
 import qualified RMQ
 import RMQ(Range(..))
 import qualified RMQ2
@@ -25,10 +26,10 @@ main = do
 testFiboPerf :: Benchmark
 testFiboPerf =
   bgroup "Fibo" [
-    bench "Iterate1000" $ nf Fibonacci.fiboIterate 1000,
-    bench "Recur1000" $ nf Fibonacci.fiboRecur 1000,
-    bench "Iterate2000" $ nf Fibonacci.fiboIterate 2000,
-    bench "Recur2000" $ nf Fibonacci.fiboRecur 2000
+    bench "Iterate1000" $ nf FiboIter.fiboIterate 1000,
+    bench "Recur1000" $ nf FiboRecur.fiboRecur 1000,
+    bench "Iterate2000" $ nf FiboIter.fiboIterate 2000,
+    bench "Recur2000" $ nf FiboRecur.fiboRecur 2000
     ]
 
 testTreePerf :: Benchmark
