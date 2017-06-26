@@ -24,6 +24,7 @@ library
                      , FizzBuzz
                      , FoldMergeSort
                      , FreeMonad
+                     , Lenses
                      , Range
                      , RapidCheck
                      , RMQ
@@ -32,9 +33,11 @@ library
                      , Tree
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5.7.1
+                     , lens >= 4.14 && < 4.16
                      , mtl >= 2.2 && < 2.3
                      , random >= 1.1 && < 1.2
                      , QuickCheck >= 2.8.2
+                     , text >= 1.2.2.1
                      , vector >= 0.11 && < 0.12
   default-language:    Haskell2010
 
