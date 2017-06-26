@@ -78,13 +78,23 @@ run_tests = do
   print (concat (trains & traversed %~ transposeOf _2))
   -- print (trains ^.. transposeOf (traversed _2))
 
+  -- Grouping duplicates using an isomorphism to [(nb, element)] <-> elements
+  let str = "aaabbcdeeeefggh"
+  print (str ^.. grouped)
+  print (str & grouped . traversed . _1 %~ succ)
+  print (str & grouped . traversed . _2 . from enum %~ succ)
+
+
   return ()
 
+
+{-
 srange' :: Int -> Int ->  Iso' [a] [a]
 srange' start end =
   iso
     (drop start . take (end - start))
     undefined -- How to reconstruct? We do not have enough data
+-}
 
 srangeImpl :: Int -> Int ->  Iso' [a] ([a], [a], [a])
 srangeImpl start end =
@@ -94,3 +104,12 @@ srangeImpl start end =
 
 srange :: Int -> Int -> Lens' [a] [a]
 srange start end = srangeImpl start end . _2
+
+grouped :: (Eq a) => Iso' [a] [(Int, a)]
+grouped = iso (foldr encode []) decode
+  where
+    encode x [] = [(1, x)]
+    encode x (y:ys) = if x == snd y then (y & over _1 succ):ys else (1,x):y:ys
+    decode = concatMap (\(n, x) -> replicate n x)
+
+--
