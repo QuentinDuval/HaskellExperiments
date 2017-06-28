@@ -3,6 +3,7 @@ module Lenses where
 
 import Control.Lens
 import Data.Char (toLower)
+import Data.List
 import qualified Data.Text as T
 import Data.Text.Lens
 
@@ -84,6 +85,9 @@ run_tests = do
   print (str & grouped . traversed . _1 %~ succ)
   print (str & grouped . traversed . _2 . from enum %~ succ)
 
+  -- Filtering a range, and reversing this sub-range
+  print ([1..10] & sfiltered odd %~ reverse)
+  print ([1..10] & sfiltered even %~ reverse)
 
   return ()
 
@@ -111,5 +115,37 @@ grouped = iso (foldr encode []) decode
     encode x [] = [(1, x)]
     encode x (y:ys) = if x == snd y then (y & over _1 succ):ys else (1,x):y:ys
     decode = concatMap (\(n, x) -> replicate n x)
+
+sfilteredImpl :: (a -> Bool) -> Iso' [a] ([Int], [a], [(Int, a)])
+sfilteredImpl p = iso partitionIndex mergeIndex
+  where
+    partitionIndex xs =
+      let (pos, neg) = partition (p . snd) (zip [0..] xs)
+          (pis, pxs) = unzip pos
+      in (pis, pxs, neg)
+    mergeIndex (is, xs, ys) = map snd $ mergeBy (compare `on` fst) (zip is xs) ys
+
+sfiltered :: (a -> Bool) -> Lens' [a] [a]
+sfiltered p = sfilteredImpl p . _2
+
+
+
+-- Helper functions
+
+on :: (b -> b -> c) -> (a -> b) -> (a -> a -> c)
+on f proj = \x y -> f (proj x) (proj y)
+
+merge :: Ord a => [a] -> [a] -> [a]
+merge = mergeBy compare
+
+mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
+mergeBy cmp = loop
+  where
+    loop [] ys  = ys
+    loop xs []  = xs
+    loop (x:xs) (y:ys)
+      = case cmp x y of
+         GT -> y : loop (x:xs) ys
+         _  -> x : loop xs (y:ys)
 
 --
