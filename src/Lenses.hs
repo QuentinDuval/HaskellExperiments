@@ -88,6 +88,7 @@ run_tests = do
   -- Filtering a range, and reversing this sub-range
   print ([1..10] & sfiltered odd %~ reverse)
   print ([1..10] & sfiltered even %~ reverse)
+  print ([1..10] & sfiltered even . traversed %~ (* 2))
 
   return ()
 
