@@ -1,4 +1,5 @@
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE RecordWildCards #-}
 module Lenses where
 
 import Control.Lens
@@ -119,17 +120,24 @@ grouped = iso (foldr encode []) decode
     encode x (y:ys) = if x == snd y then (y & over _1 succ):ys else (1,x):y:ys
     decode = concatMap (\(n, x) -> replicate n x)
 
-sfilteredImpl :: (a -> Bool) -> Iso' [a] ([Int], [a], [(Int, a)])
+data FilteredView a
+  = FilteredView { indices :: [Int]
+                 , selected :: [a]
+                 , remaining :: [(Int, a)]}
+
+sfilteredImpl :: (a -> Bool) -> Iso' [a] (FilteredView a)
 sfilteredImpl p = iso partitionIndex mergeIndex
   where
     partitionIndex xs =
-      let (pos, neg) = partition (p . snd) (zip [0..] xs)
-          (pis, pxs) = unzip pos
-      in (pis, pxs, neg)
-    mergeIndex (is, xs, ys) = map snd $ mergeBy (compare `on` fst) (zip is xs) ys
+      let (pos, remaining) = partition (p . snd) (zip [0..] xs)
+          (indices, selected) = unzip pos
+      in FilteredView indices selected remaining
+    mergeIndex FilteredView{..} = map snd $
+      mergeBy (compare `on` fst) (zip indices selected) remaining
 
 sfiltered :: (a -> Bool) -> Lens' [a] [a]
-sfiltered p = sfilteredImpl p . _2
+sfiltered p =
+  sfilteredImpl p . lens selected (\v x -> v { selected = x })
 
 
 
