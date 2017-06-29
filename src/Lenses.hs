@@ -90,7 +90,7 @@ run_tests = do
   print ([1..10] & sfiltered even . traversed %~ (* 2))
 
   -- sfiltered: what happens when you remove / add elements: no clear semantic
-  -- TODO: Try with specter how it behaves
+  -- TODO: Try with specter how it behaves (answer: badly)
   print ([1..10] & sfiltered even .~ [])             -- Looks kind of okay
   print ([1..10] & sfiltered even %~ tail)           -- Kind of MEH
   print ([1..10] & sfiltered even %~ (\x -> x ++ x)) -- Kind of MEH
@@ -98,22 +98,19 @@ run_tests = do
   return ()
 
 
-{-
-srange' :: Int -> Int ->  Iso' [a] [a]
-srange' start end =
-  iso
-    (drop start . take (end - start))
-    undefined -- How to reconstruct? We do not have enough data
--}
+-- RangeView
 
-srangeImpl :: Int -> Int ->  Iso' [a] ([a], [a], [a])
+data RangeView a = RangeView { beforeRange, middleRange, afterRange :: [a] }
+
+srangeImpl :: Int -> Int ->  Iso' [a] (RangeView a)
 srangeImpl start end =
   iso
-    (\x -> (take start x, take (end - start) (drop start x) , drop end x))
-    (\(before, x, after) -> before ++ x ++ after)
+    (\x -> RangeView (take start x) (take (end - start) (drop start x)) (drop end x))
+    (\x -> beforeRange x ++ middleRange x ++ afterRange x)
 
 srange :: Int -> Int -> Lens' [a] [a]
-srange start end = srangeImpl start end . _2
+srange start end =
+  srangeImpl start end . lens middleRange (\v x -> v { middleRange = x })
 
 grouped :: (Eq a) => Iso' [a] [(Int, a)]
 grouped = iso (foldr encode []) decode
