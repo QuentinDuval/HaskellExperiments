@@ -86,9 +86,14 @@ run_tests = do
   print (str & grouped . traversed . _2 . from enum %~ succ)
 
   -- Filtering a range, and reversing this sub-range
-  print ([1..10] & sfiltered odd %~ reverse)
   print ([1..10] & sfiltered even %~ reverse)
   print ([1..10] & sfiltered even . traversed %~ (* 2))
+
+  -- sfiltered: what happens when you remove / add elements: no clear semantic
+  -- TODO: Try with specter how it behaves
+  print ([1..10] & sfiltered even .~ [])             -- Looks kind of okay
+  print ([1..10] & sfiltered even %~ tail)           -- Kind of MEH
+  print ([1..10] & sfiltered even %~ (\x -> x ++ x)) -- Kind of MEH
 
   return ()
 
