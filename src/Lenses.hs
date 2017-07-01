@@ -87,6 +87,7 @@ run_tests = do
   print (str & grouped . traversed . _2 . from enum %~ succ)
 
   -- Filtering a range, and reversing this sub-range
+  print ([1..10] ^. sfiltered even)
   print ([1..10] & sfiltered even %~ reverse)
   print ([1..10] & sfiltered even . traversed %~ (* 2))
 
@@ -120,43 +121,23 @@ grouped = iso (foldr encode []) decode
     encode x (y:ys) = if x == snd y then (y & over _1 succ):ys else (1,x):y:ys
     decode = concatMap (\(n, x) -> replicate n x)
 
-data FilteredView a
-  = FilteredView { indices :: [Int]
-                 , selected :: [a]
-                 , remaining :: [(Int, a)]}
+data FilteredView a = FilteredView { selected :: [a] , unfiltered :: [a] }
 
 sfilteredImpl :: (a -> Bool) -> Iso' [a] (FilteredView a)
-sfilteredImpl p = iso partitionIndex mergeIndex
+sfilteredImpl p = iso toFilteredView fromFilteredView
   where
-    partitionIndex xs =
-      let (pos, remaining) = partition (p . snd) (zip [0..] xs)
-          (indices, selected) = unzip pos
-      in FilteredView indices selected remaining
-    mergeIndex FilteredView{..} = map snd $
-      mergeBy (compare `on` fst) (zip indices selected) remaining
+    toFilteredView xs = FilteredView (filter p xs) xs
+    fromFilteredView v = loop (selected v) (unfiltered v)
+      where
+        loop [] unfiltered = filter (not . p) unfiltered
+        loop selected [] = selected
+        loop selected (u:unfiltered)
+          | p u = head selected : loop (tail selected) unfiltered
+          | otherwise = u : loop selected unfiltered
 
 sfiltered :: (a -> Bool) -> Lens' [a] [a]
 sfiltered p =
   sfilteredImpl p . lens selected (\v x -> v { selected = x })
 
-
-
--- Helper functions
-
-on :: (b -> b -> c) -> (a -> b) -> (a -> a -> c)
-on f proj = \x y -> f (proj x) (proj y)
-
-merge :: Ord a => [a] -> [a] -> [a]
-merge = mergeBy compare
-
-mergeBy :: (a -> a -> Ordering) -> [a] -> [a] -> [a]
-mergeBy cmp = loop
-  where
-    loop [] ys  = ys
-    loop xs []  = xs
-    loop (x:xs) (y:ys)
-      = case cmp x y of
-         GT -> y : loop (x:xs) ys
-         _  -> x : loop xs (y:ys)
 
 --
