@@ -97,6 +97,12 @@ run_tests = do
   print ([1..10] & sfiltered even %~ tail)           -- Kind of MEH
   print ([1..10] & sfiltered even %~ (\x -> x ++ x)) -- Kind of MEH
 
+  -- Chunked
+  print ([1..10] ^.. chunked 4)
+  print ([1..10] & chunked 4 . traversed %~ init) -- Drop every
+  print ([1..10] & chunked 4 . traversed %~ reverse) -- Reverse each chunk
+  print ([1..10] & chunked 4 %~ reverse) -- Reverse chunks between them
+
   return ()
 
 
@@ -139,5 +145,11 @@ sfiltered :: (a -> Bool) -> Lens' [a] [a]
 sfiltered p =
   sfilteredImpl p . lens selected (\v x -> v { selected = x })
 
+chunked :: Int -> Iso' [a] [[a]]
+chunked width = iso toChunks concat
+  where
+    toChunks = takeWhile (not . null)
+               . map (take width)
+               . iterate (drop width)
 
 --
