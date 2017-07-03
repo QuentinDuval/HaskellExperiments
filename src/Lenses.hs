@@ -99,9 +99,19 @@ run_tests = do
 
   -- Chunked
   print ([1..10] ^.. chunked 4)
-  print ([1..10] & chunked 4 . traversed %~ init) -- Drop every
+  print ([1..10] & chunked 4 . traversed %~ init) -- Drop every element
   print ([1..10] & chunked 4 . traversed %~ reverse) -- Reverse each chunk
   print ([1..10] & chunked 4 %~ reverse) -- Reverse chunks between them
+
+  -- Combining them
+  print ([1..20] ^.. srange 5 15 . sfiltered even . chunked 2)
+  print ([1..20] & srange 5 15 . sfiltered even . chunked 2 %~ reverse)
+  print ([1..20] & srange 5 15 . sfiltered even . traversed %~ (* 2))
+
+  -- Combining transformations has to be done on RIGHT of %~
+  print ([1..20] & srange 5 15 . sfiltered even %~ reverse . map (* 2))
+
+  -- FOLDS???
 
   return ()
 
