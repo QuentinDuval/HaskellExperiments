@@ -111,6 +111,11 @@ run_tests = do
   -- Combining transformations has to be done on RIGHT of %~
   print ([1..20] & srange 5 15 . sfiltered even %~ reverse . map (* 2))
 
+  -- Combining zoom under a zoom
+  let letters = (zip ['a'..'z'] [1..])
+  print (letters & sfiltered (even . view _2) . from zipped . _1 %~ reverse)
+  print (letters & partsOf (sfiltered (even . view _2) . traversed . _1) %~ reverse)
+
   -- FOLDS???
 
   return ()
@@ -161,5 +166,8 @@ chunked width = iso toChunks concat
     toChunks = takeWhile (not . null)
                . map (take width)
                . iterate (drop width)
+
+zipped :: Iso' ([a], [b]) [(a, b)]
+zipped = iso (uncurry zip) unzip --TODO: in fact, partsOf can get rid of this
 
 --
