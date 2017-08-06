@@ -26,6 +26,7 @@ library
                      , FreeMonad
                      , Lenses
                      , Money
+                     , MoneyCata
                      , Range
                      , RapidCheck
                      , RMQ
@@ -34,6 +35,7 @@ library
                      , Tree
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5.7.1
+                     , data-fix >= 0.0.4
                      , lens >= 4.14 && < 4.16
                      , mtl >= 2.2 && < 2.3
                      , random >= 1.1 && < 1.2
