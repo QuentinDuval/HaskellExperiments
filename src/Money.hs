@@ -22,10 +22,13 @@ money :: Double -> Currency -> MoneyExpr
 money amount currency = KnownAmount $ Money amount currency
 
 add :: MoneyExpr -> MoneyExpr -> MoneyExpr
+add (KnownAmount m1) (KnownAmount m2)
+  | currency m1 == currency m2 = money (amount m1 + amount m2) (currency m1)
 add a b = MoneyAdd [a, b]
 
 multiply :: MoneyExpr -> Double -> MoneyExpr
-multiply = MoneyMul
+multiply (KnownAmount m) factor = KnownAmount $ m { amount = amount m * factor }
+multiply expr factor = MoneyMul expr factor
 
 evalMoneyIn :: (Market market) => market -> MoneyExpr -> Currency -> Maybe Money
 evalMoneyIn market expr refCurrency = go expr
@@ -62,6 +65,7 @@ test_money = do
   let b = money 25 (Currency "EUR")
   let c = money 1000 (Currency "JPY")
   let x = add (add a (multiply b 2)) c
+  print x
   let e = Money 100 (Currency "USD")
   let env = FakeEnv $ M.fromList
               [((Currency "EUR", Currency "USD"), 1.2)
