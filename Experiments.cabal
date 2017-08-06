@@ -25,6 +25,7 @@ library
                      , FoldMergeSort
                      , FreeMonad
                      , Lenses
+                     , Money
                      , Range
                      , RapidCheck
                      , RMQ
