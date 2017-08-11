@@ -26,6 +26,7 @@ library
                      , FreeMonad
                      , Lenses
                      , Money
+                     , Money2
                      , MoneyCata
                      , Range
                      , RapidCheck
