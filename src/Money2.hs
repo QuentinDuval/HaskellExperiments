@@ -20,7 +20,7 @@ data MoneyBag = MoneyBag (M.Map Currency Amount)
 --
 
 money :: Amount -> Currency -> MoneyBag
-money amount currency = MoneyBag $ M.fromList [(currency, amount)]
+money amount currency = MoneyBag $ M.singleton currency amount
 
 add :: MoneyBag -> MoneyBag -> MoneyBag
 add (MoneyBag m1) (MoneyBag m2) = MoneyBag $ M.unionWith (+) m1 m2
@@ -35,9 +35,10 @@ evalMoneyIn conversionRate (MoneyBag m) refCurrency = do
   pure $ Money { amount = sum amounts, currency = refCurrency }
 
 conversionRate :: M.Map Conversion Rate -> Conversion -> Maybe Rate
-conversionRate fakeMarket conversion@(from, to)
-  | from == to = pure 1.0
-  | otherwise  = M.lookup conversion fakeMarket
+conversionRate fakeMarket conversion@(from, to) =
+  if from == to
+    then pure 1.0
+    else M.lookup conversion fakeMarket
 
 --
 
