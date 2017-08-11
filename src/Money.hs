@@ -4,21 +4,25 @@ import qualified Data.Map as M
 
 --
 
+type Amount = Double
+type Rate = Double
+type Conversion = (Currency, Currency)
+
 newtype Currency = Currency { currencyLabel :: String }
   deriving (Show, Eq, Ord)
 
-data Money = Money { amount :: Double, currency :: Currency }
+data Money = Money { amount :: Amount, currency :: Currency }
   deriving (Show, Eq, Ord)
 
 data MoneyExpr
   = KnownAmount Money
   | MoneyAdd [MoneyExpr]
   | MoneyMul MoneyExpr Double
-  deriving (Show, Eq, Ord)
+  deriving (Show, Eq) -- TODO: problem Eq means nothing  
 
 --
 
-money :: Double -> Currency -> MoneyExpr
+money :: Amount -> Currency -> MoneyExpr
 money amount currency = KnownAmount $ Money amount currency
 
 add :: MoneyExpr -> MoneyExpr -> MoneyExpr
@@ -30,11 +34,11 @@ multiply :: MoneyExpr -> Double -> MoneyExpr
 multiply (KnownAmount m) factor = KnownAmount $ m { amount = amount m * factor }
 multiply expr factor = MoneyMul expr factor
 
-evalMoneyIn :: (Market market) => market -> MoneyExpr -> Currency -> Maybe Money
-evalMoneyIn market expr refCurrency = go expr
+evalMoneyIn :: (Conversion -> Maybe Rate) -> MoneyExpr -> Currency -> Maybe Money
+evalMoneyIn conversionRate expr refCurrency = go expr
   where
     go (KnownAmount (Money amt curr)) = do
-      rate <- conversionRate market (curr, refCurrency)
+      rate <- conversionRate (curr, refCurrency)
       pure $ Money (rate * amt) refCurrency
 
     go (MoneyAdd subs) = do
@@ -45,17 +49,10 @@ evalMoneyIn market expr refCurrency = go expr
       m <- go expr
       pure $ Money (factor * amount m) refCurrency
 
-
-class Market m where
-  conversionRate :: m -> (Currency, Currency) -> Maybe Double
-
-newtype FakeEnv = FakeEnv (M.Map (Currency, Currency) Double)
-  deriving (Show, Eq, Ord)
-
-instance Market FakeEnv where
-  conversionRate (FakeEnv env) conversion@(from, to)
-    | from == to = pure 1.0
-    | otherwise  = M.lookup conversion env
+conversionRate :: M.Map Conversion Rate -> Conversion -> Maybe Rate
+conversionRate fakeMarket conversion@(from, to)
+  | from == to = pure 1.0
+  | otherwise  = M.lookup conversion fakeMarket
 
 --
 
@@ -66,10 +63,14 @@ test_money = do
   let c = money 1000 (Currency "JPY")
   let x = add (add a (multiply b 2)) c
   print x
+  putStrLn (replicate 10 '-')
+
   let e = Money 100 (Currency "USD")
-  let env = FakeEnv $ M.fromList
+  let rates = conversionRate $ M.fromList
               [((Currency "EUR", Currency "USD"), 1.2)
               ,((Currency "JPY", Currency "USD"), 0.01)]
-  print $ Just e == evalMoneyIn env x (Currency "USD")
+
+  print $ Just e == evalMoneyIn rates x (Currency "USD")
+  print $ x == add a (add (multiply b 2) c) -- broken by design
 
 --
