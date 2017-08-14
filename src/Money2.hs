@@ -14,7 +14,7 @@ newtype Currency = Currency { currencyLabel :: String }
 data Money = Money { amount :: Amount, currency :: Currency }
   deriving (Show, Eq, Ord)
 
-data MoneyBag = MoneyBag (M.Map Currency Amount)
+newtype MoneyBag = MoneyBag (M.Map Currency Amount)
   deriving (Show, Eq, Ord)
 
 --

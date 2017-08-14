@@ -7,9 +7,7 @@ import qualified Data.Map as M
 type Amount = Double
 type Rate = Double
 type Conversion = (Currency, Currency)
-
-newtype Currency = Currency { currencyLabel :: String }
-  deriving (Show, Eq, Ord)
+type Currency = String
 
 data Money = Money { amount :: Amount, currency :: Currency }
   deriving (Show, Eq, Ord)
@@ -18,7 +16,7 @@ data MoneyExpr
   = KnownAmount Money
   | MoneyAdd [MoneyExpr]
   | MoneyMul MoneyExpr Double
-  deriving (Show, Eq) -- TODO: problem Eq means nothing  
+  deriving (Show, Eq) -- TODO: problem Eq means nothing
 
 --
 
@@ -26,12 +24,16 @@ money :: Amount -> Currency -> MoneyExpr
 money amount currency = KnownAmount $ Money amount currency
 
 add :: MoneyExpr -> MoneyExpr -> MoneyExpr
+{-
 add (KnownAmount m1) (KnownAmount m2)
   | currency m1 == currency m2 = money (amount m1 + amount m2) (currency m1)
+add (MoneyAdd xs) x = MoneyAdd (xs ++ [x])
+add x (MoneyAdd xs) = MoneyAdd (x : xs)
+-}
 add a b = MoneyAdd [a, b]
 
 multiply :: MoneyExpr -> Double -> MoneyExpr
-multiply (KnownAmount m) factor = KnownAmount $ m { amount = amount m * factor }
+-- multiply (KnownAmount m) factor = KnownAmount $ m { amount = amount m * factor }
 multiply expr factor = MoneyMul expr factor
 
 evalMoneyIn :: (Conversion -> Maybe Rate) -> MoneyExpr -> Currency -> Maybe Money
@@ -58,19 +60,20 @@ conversionRate fakeMarket conversion@(from, to)
 
 test_money :: IO ()
 test_money = do
-  let a = money 30 (Currency "USD")
-  let b = money 25 (Currency "EUR")
-  let c = money 1000 (Currency "JPY")
+  let a = money 30 "USD"
+  let b = money 25 "EUR"
+  let c = money 1000 "JPY"
   let x = add (add a (multiply b 2)) c
   print x
   putStrLn (replicate 10 '-')
 
-  let e = Money 100 (Currency "USD")
+  let e = Money 100 "USD"
   let rates = conversionRate $ M.fromList
-              [((Currency "EUR", Currency "USD"), 1.2)
-              ,((Currency "JPY", Currency "USD"), 0.01)]
+              [(("EUR", "USD"), 1.2)
+              ,(("JPY", "USD"), 0.01)]
 
-  print $ Just e == evalMoneyIn rates x (Currency "USD")
+  print $ evalMoneyIn rates x "USD"
+  print $ Just e == evalMoneyIn rates x "USD"
   print $ x == add a (add (multiply b 2) c) -- broken by design
 
 --
