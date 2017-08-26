@@ -13,6 +13,7 @@ headSafe xs = Just (head xs)
 ------------------------------------------------------------
 
 type Var = String
+type Assignment = Map.Map Var Bool
 
 data Term
   = Pos { getVar :: String }
@@ -23,23 +24,24 @@ newtype SAT = SAT { conjunctions ::  [[Term]]}
 collectVars :: SAT -> [Var]
 collectVars = Set.toList . Set.fromList . map getVar . concat . conjunctions
 
-evalTerm :: Map.Map Var Bool -> Term -> Bool
+evalTerm :: Assignment -> Term -> Bool
 evalTerm env term = env Map.! (getVar term)
 
-evalSat :: Map.Map Var Bool -> SAT -> Bool
-evalSat env = and . fmap (or . fmap (evalTerm env)) . conjunctions
+evalSat :: Assignment -> SAT -> Bool
+evalSat env = and . fmap (any (evalTerm env)) . conjunctions
 
-sat :: SAT -> Bool
-sat pb = or $ do
+sat :: SAT -> Maybe Assignment
+sat pb = headSafe $ do
   let vars = collectVars pb
-  vals <- replicate (length vars) [True, False]
+  vals <- replicateM (length vars) [True, False]
   let env = Map.fromList (zip vars vals)
-  pure $ evalSat env pb
+  guard (evalSat env pb)
+  pure env
 
 test_sat :: IO ()
 test_sat = do
   let formula = SAT [[Pos "x1", Pos "x2", Pos "x3"]
-                    ,[Neg "x1", Neg "x4", Pos "x5"]]
+                    ,[Neg "x1", Neg "x4", Neg "x5"]]
   print (sat formula)
 
 ------------------------------------------------------------
