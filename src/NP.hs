@@ -33,9 +33,10 @@ evalSat env = and . map (any (evalTerm env)) . conjunctions
 
 sat :: SAT -> Maybe Assignment
 sat pb = headSafe $ do
-  let vars = collectVars pb
-  vals <- replicateM (length vars) [True, False]
-  let assignment = Map.fromList (zip vars vals)
+  guesses <- forM (collectVars pb) $ \var -> do
+    val <- [True, False]
+    pure (var, val)
+  let assignment = Map.fromList guesses
   guard (evalSat assignment pb)
   pure assignment
 
