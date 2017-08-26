@@ -25,18 +25,19 @@ collectVars :: SAT -> [Var]
 collectVars = Set.toList . Set.fromList . map getVar . concat . conjunctions
 
 evalTerm :: Assignment -> Term -> Bool
-evalTerm env term = env Map.! (getVar term)
+evalTerm env (Pos var) = env Map.! var
+evalTerm env (Neg var) = not (env Map.! var)
 
 evalSat :: Assignment -> SAT -> Bool
-evalSat env = and . fmap (any (evalTerm env)) . conjunctions
+evalSat env = and . map (any (evalTerm env)) . conjunctions
 
 sat :: SAT -> Maybe Assignment
 sat pb = headSafe $ do
   let vars = collectVars pb
   vals <- replicateM (length vars) [True, False]
-  let env = Map.fromList (zip vars vals)
-  guard (evalSat env pb)
-  pure env
+  let assignment = Map.fromList (zip vars vals)
+  guard (evalSat assignment pb)
+  pure assignment
 
 test_sat :: IO ()
 test_sat = do
