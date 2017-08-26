@@ -13,7 +13,7 @@ headSafe xs = Just (head xs)
 ------------------------------------------------------------
 
 type Var = String
-type Assignment = Map.Map Var Bool
+type Assignment = [(Var, Bool)]
 
 data Term
   = Pos { getVar :: String }
@@ -21,30 +21,39 @@ data Term
 
 newtype SAT = SAT { conjunctions ::  [[Term]]}
 
-collectVars :: SAT -> [Var]
-collectVars = Set.toList . Set.fromList . map getVar . concat . conjunctions
+allVars :: SAT -> [Var]
+allVars = Set.toList . Set.fromList . map getVar . concat . conjunctions
 
-evalTerm :: Assignment -> Term -> Bool
+evalTerm :: Map.Map Var Bool -> Term -> Bool
 evalTerm env (Pos var) = env Map.! var
 evalTerm env (Neg var) = not (env Map.! var)
 
 evalSat :: Assignment -> SAT -> Bool
-evalSat env = and . map (any (evalTerm env)) . conjunctions
+evalSat assignment =
+  let env = Map.fromList assignment
+  in and . map (any (evalTerm env)) . conjunctions
 
 sat :: SAT -> Maybe Assignment
 sat pb = headSafe $ do
-  guesses <- forM (collectVars pb) $ \var -> do
+  assignment <- forM (allVars pb) $ \var -> do
     val <- [True, False]
     pure (var, val)
-  let assignment = Map.fromList guesses
   guard (evalSat assignment pb)
   pure assignment
+
+sat' :: SAT -> Bool
+sat' pb = or $ do
+  assignment <- forM (allVars pb) $ \var -> do
+    val <- [True, False]
+    pure (var, val)
+  pure (evalSat assignment pb)
 
 test_sat :: IO ()
 test_sat = do
   let formula = SAT [[Pos "x1", Pos "x2", Pos "x3"]
                     ,[Neg "x1", Neg "x4", Neg "x5"]]
   print (sat formula)
+  print (sat' formula)
 
 ------------------------------------------------------------
 
