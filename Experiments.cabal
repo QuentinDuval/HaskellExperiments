@@ -28,6 +28,7 @@ library
                      , Money
                      , Money2
                      , MoneyCata
+                     , NP
                      , Range
                      , RapidCheck
                      , RMQ
