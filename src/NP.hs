@@ -24,8 +24,7 @@ collectVars :: SAT -> [Var]
 collectVars = Set.toList . Set.fromList . map getVar . concat . conjunctions
 
 evalTerm :: Map.Map Var Bool -> Term -> Bool
-evalTerm env (Pos var) = env Map.! var
-evalTerm env (Neg var) = not (env Map.! var)
+evalTerm env term = env Map.! (getVar term)
 
 evalSat :: Map.Map Var Bool -> SAT -> Bool
 evalSat env = and . fmap (or . fmap (evalTerm env)) . conjunctions
@@ -39,8 +38,8 @@ sat pb = or $ do
 
 test_sat :: IO ()
 test_sat = do
-  let formula = SAT [[Pos "x1", Pos "x2", Pos "x1"]
-                    ,[Neg "x1", Neg "x2", Pos "x1"]]
+  let formula = SAT [[Pos "x1", Pos "x2", Pos "x3"]
+                    ,[Neg "x1", Neg "x4", Pos "x5"]]
   print (sat formula)
 
 ------------------------------------------------------------
