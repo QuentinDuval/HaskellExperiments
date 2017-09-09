@@ -26,7 +26,7 @@ circle center radius =
   Shape $ \coord -> euclidianDistance center coord <= radius
 
 rectangle :: Coord2D -> Coord2D -> Shape2D
-rectangle topRight@(right, top) bottomLeft@(left, bottom) =
+rectangle bottomLeft@(left, bottom) topRight@(right, top) =
   Shape $ \(x, y) -> and [x <= right, left <= x, y <= top, bottom <= y]
 
 outside :: Shape coord -> Shape coord
@@ -61,7 +61,17 @@ ring center smallRadius bigRadius =
     (circle center bigRadius)
     (outside (circle center smallRadius))
 
---
+-- Drawing the shape
+
+drawShape2D :: Shape2D -> Coord2D -> Coord2D -> Double -> [String]
+drawShape2D shape (left, bottom) (right, top) step =
+  let rows = takeWhile (<= right) (iterate (+ step) left)
+      cols = takeWhile (<= top) (iterate (+ step) bottom)
+      pixel x y = if isInShape shape (x, y) then '*' else ' '
+  in [[ pixel x y | x <- cols ] | y <- rows ]
+
+
+-- TESTS
 
 test_shapes :: IO ()
 test_shapes = do
@@ -73,6 +83,18 @@ test_shapes = do
   forM_ [(1, 1), (1, 2), (1, 3), (1, 4)] $ \c -> do
     putStr (show c ++ " => ")
     print (isInShape (ring (1, 1) 1 2) c)
+
+  let c = circle (1, 1) 1
+  mapM_ putStrLn $
+    drawShape2D c (-0.1, -0.1) (2.1, 2.1) 0.2
+
+  let cr = intersect c (rectangle (-5, 0.3) (5, 1.7))
+  mapM_ putStrLn $
+    drawShape2D cr (-0.1, -0.1) (2.1, 2.1) 0.2
+
+  let rg = ring (1, 1) 0.5 1
+  mapM_ putStrLn $
+    drawShape2D rg (-0.1, -0.1) (2.1, 2.1) 0.2
 
 --
 
