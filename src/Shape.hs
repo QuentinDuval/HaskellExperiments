@@ -1,6 +1,7 @@
 {-# LANGUAGE TypeSynonymInstances, FlexibleInstances #-}
 module Shape where
 
+import Control.Monad
 import Data.Monoid((<>))
 
 
@@ -49,6 +50,19 @@ ring center smallRadius bigRadius =
   intersect
     (circle center bigRadius)
     (outside (circle center smallRadius))
+
+--
+
+test_shapes :: IO ()
+test_shapes = do
+  print "Circle (1, 1) 1:"
+  forM_ [(2, 1), (2, 0)] $ \c -> do
+    putStr (show c ++ " => ")
+    print (isInShape (circle (1, 1) 1) c)
+  print "Ring (1, 1) 1 2:"
+  forM_ [(1, 1), (1, 2), (1, 3), (1, 4)] $ \c -> do
+    putStr (show c ++ " => ")
+    print (isInShape (ring (1, 1) 1 2) c)
 
 --
 
