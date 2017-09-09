@@ -7,45 +7,55 @@ import Data.Monoid((<>))
 
 newtype Shape coord = Shape { isInShape :: coord -> Bool }
 
-type Point2D = (Double, Double)
-type Point3D = (Double, Double, Double)
+type Coord2D = (Double, Double)
+type Shape2D = Shape Coord2D
+type Coord3D = (Double, Double, Double)
+type Shape3D = Shape Coord3D
+
 type Radius = Double
 type Distance = Double
 
 class EuclidianDistance coord where
   euclidianDistance :: coord -> coord -> Distance
 
-instance EuclidianDistance Point2D where
+instance EuclidianDistance Coord2D where
   euclidianDistance (x1, y1) (x2, y2) = sqrt ((x1 - x2) ^ 2 + (y1 - y2) ^ 2)
 
-circle :: Point2D -> Radius -> Shape Point2D
+circle :: Coord2D -> Radius -> Shape2D
 circle center radius =
   Shape $ \coord -> euclidianDistance center coord <= radius
 
-rectangle :: Point2D -> Point2D -> Shape Point2D
+rectangle :: Coord2D -> Coord2D -> Shape2D
 rectangle topRight@(right, top) bottomLeft@(left, bottom) =
   Shape $ \(x, y) -> and [x <= right, left <= x, y <= top, bottom <= y]
 
-outside :: Shape Point2D -> Shape Point2D
+outside :: Shape coord -> Shape coord
 outside s = Shape (not . isInShape s)
 
 -- Different Monoids
 
-full :: Shape coord
-full = Shape (const True)
+allSpace :: Shape coord
+allSpace = Shape (const True)
+
+intersectAll :: Foldable f => f (Shape coord) -> Shape coord
+intersectAll shapes = Shape $ \coord -> all (`isInShape` coord) shapes
 
 intersect :: Shape coord -> Shape coord -> Shape coord
-intersect s1 s2 = Shape $ \coord -> all (`isInShape` coord) [s1, s2]
+intersect s1 s2 = -- intersectAll [s1, s2]
+  Shape $ \coord -> isInShape s1 coord && isInShape s2 coord
 
 empty :: Shape coord
 empty = Shape (const False)
 
+superposeAll :: Foldable f => f (Shape coord) -> Shape coord
+superposeAll shapes = Shape $ \coord -> any (`isInShape` coord) shapes
+
 superpose :: Shape coord -> Shape coord -> Shape coord
-superpose s1 s2 = Shape $ \coord -> any (`isInShape` coord) [s1, s2]
+superpose s1 s2 = superposeAll [s1, s2]
 
 -- Leveraging the Monoids
 
-ring :: Point2D -> Radius -> Radius -> Shape Point2D
+ring :: Coord2D -> Radius -> Radius -> Shape2D
 ring center smallRadius bigRadius =
   intersect
     (circle center bigRadius)
