@@ -19,6 +19,7 @@ library
                      , Arithmetic
                      , Arithmetic2
                      , Catamorphism
+                     , DepTypes
                      , FiboIter
                      , FiboRecur
                      , FizzBuzz
