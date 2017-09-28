@@ -11,7 +11,9 @@ instance Func Int where
 instance Func String where
   type Res String = String
 
--- TODO: how to test the failure of deduction?
+-- Does not compile ! Cannot deduce a
+-- f :: Res a -> ()
+-- f _ = ()
 
 class FuncInj a where
   data ResInj a :: *
@@ -21,5 +23,8 @@ instance FuncInj Int where
 
 instance FuncInj String where
   data ResInj String = FuncString
+
+g :: ResInj a -> ()
+g _ = ()
 
 --
