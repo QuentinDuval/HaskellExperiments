@@ -118,8 +118,6 @@ tryMates =
     tryDo $ fmap (\_ -> (True, True)) $ mateSnails ,
     mateSnails ]
 
--- TODO: can you still memoize it once it is abstract? (Memo Monad?)
-
 --
 
 run_test :: IO ()
