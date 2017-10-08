@@ -18,6 +18,7 @@ library
   exposed-modules:     AlphaBeta
                      , Arithmetic
                      , Arithmetic2
+                     , BinarySearch
                      , Catamorphism
                      , Coroutine
                      , DepTypes
