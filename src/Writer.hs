@@ -100,6 +100,7 @@ discardLogs w = w { writerLog = mempty }
 -- Now to the advantage of Data
 -- * You can drop the logs (side effects cannot be rollbacked)
 -- * You can memoize the logs! (TODO - How? Not inside the abstraction, after)
+-- * You can serialize it (leads to memo... TODO is it the way to implement memo?)
 
 class Monad m => MonadTry m where
   tryDo :: m (a, Bool) -> m a -- TODO: dropLog instead... build try on top
