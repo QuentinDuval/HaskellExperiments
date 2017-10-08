@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances, ConstraintKinds #-}
 module Writer where
 
 import Control.Monad
@@ -97,21 +97,25 @@ runNoLogs = runIdentity
 discardLogs :: (Monoid m) => Writer m a -> Writer m a
 discardLogs w = w { writerLog = mempty }
 
--- dropLogs :: Writer (could you write this???)
+-- Now to the advantage of Data
+-- * You can drop the logs (side effects cannot be rollbacked)
+-- * You can memoize the logs! (TODO - How? Not inside the abstraction, after)
 
-class MonadLog m => MonadLogTry m where
-  tryLog :: m (a, Bool) -> m a
+class Monad m => MonadTry m where
+  tryDo :: m (a, Bool) -> m a -- TODO: dropLog instead... build try on top
 
-instance MonadLogTry (Writer Builder) where
-  tryLog (Writer m (a, keep))
+type MonadLogTry m = (MonadLog m, MonadTry m)
+
+instance (Monoid m) => MonadTry (Writer m) where
+  tryDo (Writer m (a, keep))
     | keep = Writer m a
     | otherwise = Writer mempty a
 
 tryMates :: (MonadLogTry m) => m Bool
 tryMates =
   orM [
-    tryLog $ fmap (\_ -> (False, False)) $ mateSnails ,
-    tryLog $ fmap (\_ -> (True, True)) $ mateSnails ,
+    tryDo $ fmap (\_ -> (False, False)) $ mateSnails ,
+    tryDo $ fmap (\_ -> (True, True)) $ mateSnails ,
     mateSnails ]
 
 -- TODO: can you still memoize it once it is abstract? (Memo Monad?)
