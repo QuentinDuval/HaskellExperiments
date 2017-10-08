@@ -7,6 +7,12 @@ import Data.Text.Lazy
 import Data.Text.Lazy.Builder
 
 
+-- This is in the end very similar to:
+-- * Dependency injection of interface with log function
+-- * Implementation in terms of accumulating to strings
+-- * But more declarative (and potentially memoizable?)
+
+
 -- Writer Monad (no side effect, just accumulate)
 
 data Writer m a
