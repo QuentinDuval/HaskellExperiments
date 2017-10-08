@@ -37,6 +37,12 @@ instance MonadLog (Writer Builder) where
 instance MonadLog (Writer [Text]) where
   logInfo s = write [pack s]
 
+instance MonadLog IO where
+  logInfo s = print s
+
+instance MonadLog Identity where
+  logInfo _ = pure ()
+
 --
 
 type Snail = String
@@ -67,8 +73,8 @@ mateSnails = do
   slug <- popSnail "Slug"
   slim <- popSnail "Slim"
   andM [
-    sendDart slug slim , -- TODO: in C++, just wrap in lambda?
-    sendDart slim slug ,
+    sendDart slug slim , -- TODO: in C++, just wrap in lambda and return pair(std::string, result)?
+    sendDart slim slug , -- TODO: in C++, just wrap in lambda and still use log interface
     parentalAdvisorySnailStuff slug slim ]
 
 {-
@@ -84,9 +90,6 @@ data Proxy a
 
 withoutLogs :: Proxy m -> Writer m a -> a
 withoutLogs _ = writerOut
-
-instance MonadLog Identity where
-  logInfo _ = pure ()
 
 runNoLogs :: Identity a -> a
 runNoLogs = runIdentity
@@ -119,6 +122,8 @@ run_test :: IO ()
 run_test = do
   print $ writerLog (mateSnails :: Writer Builder Bool)
   mapM_ print $ writerLog (mateSnails :: Writer [Text] Bool)
+  mateSnails
+
   print $ writerLog (discardLogs mateSnails :: Writer Builder Bool)
   print $ withoutLogs (undefined :: Proxy Builder) mateSnails
   print $ runNoLogs mateSnails
