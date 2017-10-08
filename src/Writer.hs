@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleInstances #-}
 module Writer where
 
+import Control.Monad
+
 
 -- Writer Monad (no side effect, just accumulate)
 
@@ -46,10 +48,7 @@ parentalAdvisorySnailStuff s1 s2 = do
   pure True
 
 andM :: (Monad m) => [m Bool] -> m Bool
-andM [] = pure True
-andM (mb:mbs) = do
-  b <- mb
-  if b then andM mbs else pure b
+andM = foldM (\res action -> if not res then pure res else action) True
 
 mateSnails :: (MonadLog m) => m Bool
 mateSnails = do
