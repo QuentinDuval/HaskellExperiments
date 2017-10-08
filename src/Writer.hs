@@ -2,6 +2,7 @@
 module Writer where
 
 import Control.Monad
+import Control.Monad.Identity
 import Data.Text.Lazy
 import Data.Text.Lazy.Builder
 
@@ -58,6 +59,9 @@ parentalAdvisorySnailStuff s1 s2 = do
 andM :: (Monad m) => [m Bool] -> m Bool
 andM = foldM (\res action -> if not res then pure res else action) True
 
+orM :: (Monad m) => [m Bool] -> m Bool
+orM = foldM (\res action -> if res then pure res else action) False
+
 mateSnails :: (MonadLog m) => m Bool
 mateSnails = do
   slug <- popSnail "Slug"
@@ -74,16 +78,48 @@ mateSnails = do
   pure (ok1 && ok2 && ok3)
 -}
 
-attempt :: Writer m a -> a
-attempt = writerOut
+-- Discarding the logs
+
+data Proxy a
+
+withoutLogs :: Proxy m -> Writer m a -> a
+withoutLogs _ = writerOut
+
+instance MonadLog Identity where
+  logInfo _ = pure ()
+
+runNoLogs :: Identity a -> a
+runNoLogs = runIdentity
+
+discardLogs :: (Monoid m) => Writer m a -> Writer m a
+discardLogs w = w { writerLog = mempty }
+
+-- dropLogs :: Writer (could you write this???)
+
+class MonadLog m => MonadLogTry m where
+  tryLog :: m (a, Bool) -> m a
+
+instance MonadLogTry (Writer Builder) where
+  tryLog (Writer m (a, keep))
+    | keep = Writer m a
+    | otherwise = Writer mempty a
+
+tryMates :: (MonadLogTry m) => m Bool
+tryMates =
+  orM [
+    tryLog $ fmap (\_ -> (False, False)) $ mateSnails ,
+    tryLog $ fmap (\_ -> (True, True)) $ mateSnails ,
+    mateSnails ]
 
 --
 
 run_test :: IO ()
 run_test = do
   print $ writerLog (mateSnails :: Writer Builder Bool)
-  mapM_ print $
-    writerLog (mateSnails :: Writer [Text] Bool)
-  print $ attempt (mateSnails :: Writer Builder Bool)
+  mapM_ print $ writerLog (mateSnails :: Writer [Text] Bool)
+  print $ writerLog (discardLogs mateSnails :: Writer Builder Bool)
+  print $ withoutLogs (undefined :: Proxy Builder) mateSnails
+  print $ runNoLogs mateSnails
+  print $ writerLog (tryMates :: Writer Builder Bool)
 
 --
