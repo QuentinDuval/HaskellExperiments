@@ -92,7 +92,7 @@ mateSnails = do
 
 -- Discarding the logs
 
-data Proxy a
+data Proxy a = Proxy
 
 withoutLogs :: Proxy m -> Writer m a -> a
 withoutLogs _ = writerOut
@@ -134,7 +134,7 @@ run_test = do
   mateSnails
 
   print $ writerLog (discardLogs mateSnails :: Writer Builder Bool)
-  print $ withoutLogs (undefined :: Proxy Builder) mateSnails
+  print $ withoutLogs (Proxy :: Proxy Builder) mateSnails
   print $ runNoLogs mateSnails
   print $ writerLog (tryMates :: Writer Builder Bool)
 
