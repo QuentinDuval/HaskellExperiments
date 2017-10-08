@@ -19,29 +19,29 @@ instance Coroutine Par where
   async = spawn
   await = get
 
-co_await :: Coroutine m => m (Future m a) -> m a
-co_await fut = fut >>= await
+-- co_await :: Coroutine m => m (Future m a) -> m a
+-- co_await fut = fut >>= await
 
 ----
 
 type Film = String
 type Year = Int
 
-fetchFilm :: Coroutine m => Int -> m (Future m Film)
-fetchFilm _ = async (pure "Film")
+fetchFilm :: Monad m => Int -> m Film
+fetchFilm _ = pure "Film"
 
 getYear :: Film -> Year
 getYear = length
 
-fetchAtSameYear :: Coroutine m => Year -> m (Future m [Film])
-fetchAtSameYear y = async (pure (replicate y "c"))
+fetchAtSameYear :: Monad m => Year -> m [Film]
+fetchAtSameYear y = pure (replicate y "c")
 
 countFilms :: Coroutine m => Int -> m (Future m Int)
 countFilms filmId = do
-  film <- co_await (fetchFilm filmId) -- TODO: implement as blocking or non-blocking
-  let year = getYear film
-  films <- co_await (fetchAtSameYear year) -- TODO: implement as block or non-blocking
-  async (pure $ length films)
+  film <- async (fetchFilm filmId)
+  year <- getYear <$> await film
+  films <- async (fetchAtSameYear year)
+  async $ fmap length (await films)
 
 test_par_counts :: IO (Int, Int)
 test_par_counts = runParIO $ do
