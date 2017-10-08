@@ -28,6 +28,9 @@ class Monad m => MonadLog m where
 instance MonadLog (Writer String) where
   logInfo s = Writer (s ++ "\n") ()
 
+instance MonadLog (Writer [String]) where
+  logInfo s = Writer [s] ()
+
 --
 
 type Snail = String
@@ -66,10 +69,16 @@ mateSnails = do
   pure (ok1 && ok2 && ok3)
 -}
 
+attempt :: Writer m a -> a
+attempt = writerOut
+
 --
 
 run_test :: IO ()
 run_test = do
   putStrLn $ writerLog mateSnails
+  mapM_ putStrLn $
+    writerLog (mateSnails :: Writer [String] Bool)
+  print $ attempt (mateSnails :: Writer String Bool)
 
 --
