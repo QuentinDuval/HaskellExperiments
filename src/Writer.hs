@@ -2,6 +2,8 @@
 module Writer where
 
 import Control.Monad
+import Data.Text.Lazy
+import Data.Text.Lazy.Builder
 
 
 -- Writer Monad (no side effect, just accumulate)
@@ -20,16 +22,19 @@ instance (Monoid m) => Applicative (Writer m) where
 instance (Monoid m) => Monad (Writer m) where
   Writer m1 a >>= f = let Writer m2 b = f a in Writer (mappend m1 m2) b
 
+write :: m -> Writer m ()
+write m = Writer m ()
+
 --
 
 class Monad m => MonadLog m where
   logInfo :: String -> m ()
 
-instance MonadLog (Writer String) where
-  logInfo s = Writer (s ++ "\n") ()
+instance MonadLog (Writer Builder) where
+  logInfo s = write $ fromString (s ++ "\n")
 
-instance MonadLog (Writer [String]) where
-  logInfo s = Writer [s] ()
+instance MonadLog (Writer [Text]) where
+  logInfo s = write [pack s]
 
 --
 
@@ -76,9 +81,9 @@ attempt = writerOut
 
 run_test :: IO ()
 run_test = do
-  putStrLn $ writerLog mateSnails
-  mapM_ putStrLn $
-    writerLog (mateSnails :: Writer [String] Bool)
-  print $ attempt (mateSnails :: Writer String Bool)
+  print $ writerLog (mateSnails :: Writer Builder Bool)
+  mapM_ print $
+    writerLog (mateSnails :: Writer [Text] Bool)
+  print $ attempt (mateSnails :: Writer Builder Bool)
 
 --
