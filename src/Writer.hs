@@ -67,7 +67,7 @@ mateSnails = do
   slug <- popSnail "Slug"
   slim <- popSnail "Slim"
   andM [
-    sendDart slug slim ,
+    sendDart slug slim , -- TODO: in C++, just wrap in lambda?
     sendDart slim slug ,
     parentalAdvisorySnailStuff slug slim ]
 
