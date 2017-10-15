@@ -147,8 +147,30 @@ instance (Ord i, Monoid o) => Encoding (Map i o) where
   encode encoding =
     foldr (\i out -> mappend (encoding Map.! i) out) mempty
 
--- Decoding (TODO)
+-- Decoding
 
+type Bit = Char
+
+newtype DiffList a = DiffList { getDiffList :: [a] -> [a] }
+
+toDiffList :: [a] -> DiffList a
+toDiffList xs = DiffList (xs++)
+
+fromDiffList :: DiffList a -> [a]
+fromDiffList (DiffList f) = f []
+
+instance Monoid (DiffList a) where
+  mempty = DiffList (\xs -> [] ++ xs)
+  (DiffList f) `mappend` (DiffList g) = DiffList (\xs -> f (g xs))
+
+decode :: (Foldable f) => BinaryTree a -> f Bit -> [a]
+decode huffTree = fromDiffList . snd . foldl decodeOne (huffTree, toDiffList [])
+  where
+    decodeOne (BinaryNode l r, res) bit =
+      let nextTree = if bit == '0' then l else r
+      in case nextTree of
+          BinaryLeaf x -> (huffTree, res `mappend` toDiffList [x])
+          _ -> (nextTree, res)
 
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
@@ -175,6 +197,11 @@ test_huffmanEncoding = TestCase $ do
   let code = Map.fromList $ huffmanCode [(1, 'a'), (2, 'b'), (3, 'c')]
   assertEqual "3 symbols" "00011" (encode code "abc")
 
+test_huffmanDecoding :: Test
+test_huffmanDecoding = TestCase $ do
+  let decoding = huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')]
+  assertEqual "3 symbols" "abc" (decode decoding "00011")
+
 
 
 -- Property based tests
@@ -199,7 +226,8 @@ all_tests :: IO Counts
 all_tests = runTestTT $
   TestList [ test_hasPairSum
            , test_huffmanCode
-           , test_huffmanEncoding ]
+           , test_huffmanEncoding
+           , test_huffmanDecoding ]
 
 pbt_tests :: IO ()
 pbt_tests = do
