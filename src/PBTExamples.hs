@@ -1,8 +1,11 @@
 module PBTExamples where
 
+import Control.Arrow
 import Data.List
 import Data.Maybe
 
+import Data.Map(Map)
+import qualified Data.Map as Map
 import qualified Data.Set as Set
 import Data.Vector.Unboxed(Vector, (!))
 import qualified Data.Vector.Unboxed as Vector
@@ -39,9 +42,6 @@ test_hasPairSum = TestCase $ do
   assertEqual "Success case" (Just (2, 3)) $ pairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
   assertEqual "Failure case" False $ hasPairSum 8 (Vector.fromList [1, 3, 4, 6, 9])
 
-all_tests :: IO Counts
-all_tests = runTestTT test_hasPairSum
-
 -- Proof:
 -- INVARIANT = distance to the right position if they exist
 -- It can only go down
@@ -61,8 +61,105 @@ prop_noExistingSum =
       not (Set.member total sums) ==>
         not (hasPairSum total (Vector.fromList (sort ints)))
 
-all_pbt_tests :: IO ()
-all_pbt_tests = do
+
+--------------------------------------------------------------------------------
+-- Second example
+-- Huffman Encoding
+-- * The vector must be ordered
+-- * Other cases (Hash map)
+--------------------------------------------------------------------------------
+
+data Heap k v = Heap {
+  heapSize :: Int,
+  heapData :: Map k [v] }
+  deriving (Show, Eq, Ord)
+
+emptyHeap :: (Ord k) => Heap k v
+emptyHeap = Heap 0 Map.empty
+
+makeHeap :: (Ord k, Foldable f) => f (k, v) -> Heap k v
+makeHeap = foldl insertHeap emptyHeap
+
+insertHeap :: (Ord k) => Heap k v -> (k, v) -> Heap k v
+insertHeap (Heap s m) (k, v) =
+  Heap (succ s) (Map.alter addKey k m)
+  where
+    addKey Nothing = pure [v]
+    addKey (Just vs) = pure (v:vs)
+
+popMin :: (Ord k) => Heap k v -> ((k, v), Heap k v)
+popMin (Heap s m) =
+  case Map.minViewWithKey m of
+    Just ((k, [x]), m') -> ((k, x), Heap (pred s) m')
+    Just ((k, (x:xs)), m') -> ((k, x), Heap (pred s) (Map.insert k xs m'))
+
+popMins :: (Ord k) => Heap k v -> Int -> ([(k, v)], Heap k v)
+popMins m 0 = ([], m)
+popMins m n =
+  let (kv, m') = popMin m
+      (kvs, m'') = popMins m' (pred n)
+  in (kv:kvs, m'')
+
+-- Huffman encoding tree
+
+type Freq = Int
+
+data BinaryTree a
+  = BinaryNode { lhs, rhs :: BinaryTree a }
+  | BinaryLeaf { value :: a }
+
+mergeHuffmanTree :: (Freq, BinaryTree a) -> (Freq, BinaryTree a) -> (Freq, BinaryTree a)
+mergeHuffmanTree (w1, t1) (w2, t2) = (w1 + w2, BinaryNode t1 t2)
+
+huffmanTree :: [(Freq, a)] -> BinaryTree a
+huffmanTree = loop . makeHeap . fmap (second BinaryLeaf)
+  where
+    loop h
+      | heapSize h < 2 = snd (fst (popMin h))
+      | otherwise =
+        let ([x, y], h') = popMins h 2
+        in loop $ insertHeap h' (mergeHuffmanTree x y)
+
+-- Huffman code
+
+type Code = String
+
+huffmanCode :: [(Freq, a)] -> [(a, Code)]
+huffmanCode = treeToCode . huffmanTree
+  where
+    treeToCode (BinaryLeaf a) = [(a, "")]
+    treeToCode (BinaryNode l r) =
+      fmap (second ('0':)) (treeToCode l)
+      ++ fmap (second ('1':)) (treeToCode r)
+
+-- Proof : Show that the huffman encoding is minimal according to Shanon
+
+-- Unit tests
+-- * Will likely test too much (or Back and Forth)
+
+test_huffmanCode :: Test
+test_huffmanCode = TestCase $ do
+  assertEqual "Sample code"
+    [('b',"00"),('a',"01"),('c',"1")]
+    (huffmanCode [(2, 'a'), (1, 'b'), (3, 'c')])
+
+
+-- Property based tests
+-- * No prefix of other suffix
+-- * Back and forth encoding
+
+
+
+--------------------------------------------------------------------------------
+-- RUNNING ALL TESTS
+--------------------------------------------------------------------------------
+
+all_tests :: IO Counts
+all_tests = runTestTT $
+  TestList [test_hasPairSum, test_huffmanCode]
+
+pbt_tests :: IO ()
+pbt_tests = do
   quickCheck prop_findExistingSum
   quickCheck prop_noExistingSum
 
