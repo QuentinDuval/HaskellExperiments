@@ -125,7 +125,8 @@ huffmanTree = loop . makeHeap . fmap (second BinaryLeaf)
 type Code = String
 
 huffmanCode :: [(Freq, a)] -> [(a, Code)]
-huffmanCode = treeToCode . huffmanTree
+huffmanCode [] = []
+huffmanCode freqs = treeToCode (huffmanTree freqs)
   where
     treeToCode (BinaryLeaf a) = [(a, "")]
     treeToCode (BinaryNode l r) =
@@ -139,14 +140,23 @@ huffmanCode = treeToCode . huffmanTree
 
 test_huffmanCode :: Test
 test_huffmanCode = TestCase $ do
-  assertEqual "Sample code"
+  assertEqual "no symbol"
+    ([] :: [(Char, Code)])
+    (huffmanCode [])
+  assertEqual "1 symbol"
+    [('b', "")]
+    (huffmanCode [(1, 'b')])
+  assertEqual "3 symbols"
     [('b',"00"),('a',"01"),('c',"1")]
     (huffmanCode [(2, 'a'), (1, 'b'), (3, 'c')])
+
 
 
 -- Property based tests
 -- * No prefix of other suffix
 -- * Back and forth encoding
+
+-- prop_noPrefixOtherSuffix :: [(Freq, Char)] -> Propery
 
 
 
