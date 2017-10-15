@@ -133,10 +133,16 @@ huffmanCode freqs = treeToCode (huffmanTree freqs)
       fmap (second ('0':)) (treeToCode l)
       ++ fmap (second ('1':)) (treeToCode r)
 
+-- Encoding (TODO)
+
+-- Decoding (TODO)
+
 -- Proof : Show that the huffman encoding is minimal according to Shanon
 
 -- Unit tests
--- * Will likely test too much (or Back and Forth)
+-- * Encoding will likely test too much (check prefix...)
+--   => YOU CAN USE PROPERTIES FOR TESTS AS WELL
+-- * Back and Forth encoding...
 
 test_huffmanCode :: Test
 test_huffmanCode = TestCase $ do
@@ -151,13 +157,18 @@ test_huffmanCode = TestCase $ do
     (huffmanCode [(2, 'a'), (1, 'b'), (3, 'c')])
 
 
-
 -- Property based tests
 -- * No prefix of other suffix
 -- * Back and forth encoding
 
--- prop_noPrefixOtherSuffix :: [(Freq, Char)] -> Propery
+anyPrefixOfSuffix :: [String] -> Bool
+anyPrefixOfSuffix xs =
+  let sorted = sort xs
+  in or (zipWith isPrefixOf sorted (drop 1 sorted))
 
+prop_noPrefixOtherSuffix :: [(Freq, Char)] -> Bool
+prop_noPrefixOtherSuffix =
+  not . anyPrefixOfSuffix . fmap snd . huffmanCode
 
 
 --------------------------------------------------------------------------------
@@ -172,5 +183,6 @@ pbt_tests :: IO ()
 pbt_tests = do
   quickCheck prop_findExistingSum
   quickCheck prop_noExistingSum
+  quickCheck prop_noPrefixOtherSuffix
 
 --
