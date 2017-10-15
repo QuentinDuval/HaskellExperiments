@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 module PBTExamples where
 
 import Control.Arrow
@@ -133,9 +134,22 @@ huffmanCode freqs = treeToCode (huffmanTree freqs)
       fmap (second ('0':)) (treeToCode l)
       ++ fmap (second ('1':)) (treeToCode r)
 
--- Encoding (TODO)
+-- Encoding
+
+class Encoding coding where
+  type EncodingIn coding :: *
+  type EncodingOut coding :: *
+  encode :: (Foldable f) => coding -> f (EncodingIn coding) -> EncodingOut coding
+
+instance (Ord i, Monoid o) => Encoding (Map i o) where
+  type EncodingIn (Map i o) = i
+  type EncodingOut (Map i o) = o
+  encode encoding =
+    foldr (\i out -> mappend (encoding Map.! i) out) mempty
 
 -- Decoding (TODO)
+
+
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
 
@@ -155,6 +169,12 @@ test_huffmanCode = TestCase $ do
   assertEqual "3 symbols"
     [('b',"00"),('a',"01"),('c',"1")]
     (huffmanCode [(2, 'a'), (1, 'b'), (3, 'c')])
+
+test_huffmanEncoding :: Test
+test_huffmanEncoding = TestCase $ do
+  let code = Map.fromList $ huffmanCode [(1, 'a'), (2, 'b'), (3, 'c')]
+  assertEqual "3 symbols" "00011" (encode code "abc")
+
 
 
 -- Property based tests
@@ -177,7 +197,9 @@ prop_noPrefixOtherSuffix =
 
 all_tests :: IO Counts
 all_tests = runTestTT $
-  TestList [test_hasPairSum, test_huffmanCode]
+  TestList [ test_hasPairSum
+           , test_huffmanCode
+           , test_huffmanEncoding ]
 
 pbt_tests :: IO ()
 pbt_tests = do
