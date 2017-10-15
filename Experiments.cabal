@@ -40,6 +40,7 @@ library
                      , TrainingL
                      , Tree
                      , Writer
+                     , WriterT
   build-depends:       base >= 4.7 && < 5
                      , containers >= 0.5.7.1
                      , data-fix >= 0.0.4
