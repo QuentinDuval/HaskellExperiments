@@ -183,7 +183,6 @@ test_huffmanDecoding = TestCase $ do
   assertEqual "3 symbols" "abc" (decode decoding "00011")
 
 
-
 -- Property based tests
 -- * No prefix of other suffix
 -- * Back and forth encoding
@@ -197,8 +196,15 @@ prop_noPrefixOtherSuffix :: [(Freq, Char)] -> Bool
 prop_noPrefixOtherSuffix =
   not . anyPrefixOfSuffix . fmap snd . huffmanCode
 
-prop_encodeDecode :: [(Freq, Char)] -> Bool
-prop_encodeDecode = undefined
+prop_encodeDecode :: [(Freq, Char)] -> Property
+prop_encodeDecode freqs =
+  length freqs > 1 ==>
+    let chars = map snd freqs
+        decoder = huffmanTree freqs
+        encoding = Map.fromList (huffmanCode freqs)
+        encoder = \i -> Map.lookup i encoding
+    in forAll (listOf (elements chars)) $ \text ->
+        decode decoder (encode encoder text) == text
 
 
 --------------------------------------------------------------------------------
@@ -217,5 +223,6 @@ pbt_tests = do
   quickCheck prop_findExistingSum
   quickCheck prop_noExistingSum
   quickCheck prop_noPrefixOtherSuffix
+  quickCheck prop_encodeDecode
 
 --
