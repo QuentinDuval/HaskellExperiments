@@ -112,8 +112,8 @@ data BinaryTree a
 mergeHuffmanTree :: (Freq, BinaryTree a) -> (Freq, BinaryTree a) -> (Freq, BinaryTree a)
 mergeHuffmanTree (w1, t1) (w2, t2) = (w1 + w2, BinaryNode t1 t2)
 
-huffmanTree :: [(Freq, a)] -> BinaryTree a
-huffmanTree = loop . makeHeap . fmap (second BinaryLeaf)
+huffmanDecoder :: [(Freq, a)] -> BinaryTree a
+huffmanDecoder = loop . makeHeap . fmap (second BinaryLeaf)
   where
     loop h
       | heapSize h < 2 = snd (fst (popMin h))
@@ -126,13 +126,15 @@ huffmanTree = loop . makeHeap . fmap (second BinaryLeaf)
 type Code = String
 
 huffmanCode :: [(Freq, a)] -> [(a, Code)]
-huffmanCode [] = []
-huffmanCode freqs = treeToCode (huffmanTree freqs)
+huffmanCode = treeToCode . huffmanDecoder
   where
     treeToCode (BinaryLeaf a) = [(a, "")]
     treeToCode (BinaryNode l r) =
       fmap (second ('0':)) (treeToCode l)
       ++ fmap (second ('1':)) (treeToCode r)
+
+toEncoder :: (Ord a) => [(a, Code)] -> (a -> Maybe Code)
+toEncoder code = \i -> Map.lookup i (Map.fromList code)
 
 -- Encoding
 
@@ -173,14 +175,13 @@ test_huffmanCode = TestCase $ do
 
 test_huffmanEncoding :: Test
 test_huffmanEncoding = TestCase $ do
-  let code = Map.fromList $ huffmanCode [(1, 'a'), (2, 'b'), (3, 'c')]
-      encoder i = Map.lookup i code
+  let encoder = toEncoder (huffmanCode [(1, 'a'), (2, 'b'), (3, 'c')])
   assertEqual "3 symbols" "00011" (encode encoder "abc")
 
 test_huffmanDecoding :: Test
 test_huffmanDecoding = TestCase $ do
-  let decoding = huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')]
-  assertEqual "3 symbols" "abc" (decode decoding "00011")
+  let decoder = huffmanDecoder [(1, 'a'), (2, 'b'), (3, 'c')]
+  assertEqual "3 symbols" "abc" (decode decoder "00011")
 
 
 -- Property based tests
@@ -200,9 +201,8 @@ prop_encodeDecode :: [(Freq, Char)] -> Property
 prop_encodeDecode freqs =
   length freqs > 1 ==>
     let chars = map snd freqs
-        decoder = huffmanTree freqs
-        encoding = Map.fromList (huffmanCode freqs)
-        encoder = \i -> Map.lookup i encoding
+        decoder = huffmanDecoder freqs
+        encoder = toEncoder (huffmanCode freqs)
     in forAll (listOf (elements chars)) $ \text ->
         decode decoder (encode encoder text) == text
 
