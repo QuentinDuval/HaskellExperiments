@@ -123,6 +123,7 @@ decode decoder = loop decoder . foldr (:) []
 -- Huffman encoding tree
 
 type Freq = Int
+type Code = String
 
 data BinaryTree a
   = BinaryNode { lhs, rhs :: BinaryTree a }
@@ -140,26 +141,18 @@ huffmanTree = loop . makeHeap . fmap (second BinaryLeaf)
         let ([x, y], h') = popMins h 2
         in loop $ insertHeap h' (mergeHuffmanTree x y)
 
--- Huffman code
+treeToCode :: BinaryTree symbol -> [(symbol, Code)]
+treeToCode (BinaryLeaf a) = [(a, "")]
+treeToCode (BinaryNode l r) =
+  fmap (second ('0':)) (treeToCode l) ++ fmap (second ('1':)) (treeToCode r)
 
-type Code = String
-
-huffmanCode :: [(Freq, a)] -> [(a, Code)]
-huffmanCode = treeToCode . huffmanTree
-  where
-    treeToCode (BinaryLeaf a) = [(a, "")]
-    treeToCode (BinaryNode l r) =
-      fmap (second ('0':)) (treeToCode l)
-      ++ fmap (second ('1':)) (treeToCode r)
-
-toEncoder :: (Ord a) => [(a, Code)] -> Encoder a Code
-toEncoder code =
-  let encoding = Map.fromList code
-  in Encoder (\i -> Map.lookup i encoding)
-
--- Decoding
+-- Encoding / Decoding
 
 type Bit = Char
+
+toEncoder :: (Ord symbol) => BinaryTree symbol -> Encoder symbol Code
+toEncoder huffTree = Encoder (\i -> Map.lookup i encoding)
+  where encoding = Map.fromList (treeToCode huffTree)
 
 toDecoder :: BinaryTree symbol -> Decoder Bit symbol
 toDecoder huffTree = decoder huffTree huffTree
@@ -186,19 +179,19 @@ test_huffmanCode = TestCase $ do
   -}
   assertEqual "1 symbol"
     [('b', "")]
-    (huffmanCode [(1, 'b')])
+    (treeToCode $ huffmanTree [(1, 'b')])
   assertEqual "3 symbols"
     [('b',"00"),('a',"01"),('c',"1")]
-    (huffmanCode [(2, 'a'), (1, 'b'), (3, 'c')])
+    (treeToCode $ huffmanTree [(2, 'a'), (1, 'b'), (3, 'c')])
 
 test_huffmanEncoding :: Test
 test_huffmanEncoding = TestCase $ do
-  let encoder = toEncoder (huffmanCode [(1, 'a'), (2, 'b'), (3, 'c')])
+  let encoder = toEncoder (huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')])
   assertEqual "3 symbols" "00011" (encode encoder "abc")
 
 test_huffmanDecoding :: Test
 test_huffmanDecoding = TestCase $ do
-  let decoder = toDecoder $ huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')]
+  let decoder = toDecoder (huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')])
   assertEqual "3 symbols" "abc" (decode decoder "00011")
 
 
@@ -214,14 +207,14 @@ anyPrefixOfSuffix xs =
 prop_noPrefixOtherSuffix :: [(Freq, Char)] -> Property
 prop_noPrefixOtherSuffix freqs =
   length freqs > 1 ==>
-    not $ anyPrefixOfSuffix $ fmap snd (huffmanCode freqs)
+    not $ anyPrefixOfSuffix $ fmap snd (treeToCode $ huffmanTree freqs)
 
 prop_encodeDecode :: [(Freq, Char)] -> Property
 prop_encodeDecode freqs =
   length freqs > 1 ==>
     let chars = map snd freqs
         decoder = toDecoder (huffmanTree freqs)
-        encoder = toEncoder (huffmanCode freqs)
+        encoder = toEncoder (huffmanTree freqs)
     in forAll (listOf (elements chars)) $ \text ->
         decode decoder (encode encoder text) == text
 
