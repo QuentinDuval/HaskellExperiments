@@ -4,6 +4,8 @@ module PBTExamples where
 import Control.Arrow
 import Data.List
 import Data.Maybe
+import qualified Data.Text.Lazy as Text
+import qualified Data.Text.Lazy.Builder as Builder
 
 import Data.Map(Map)
 import qualified Data.Map as Map
@@ -49,18 +51,16 @@ test_hasPairSum = TestCase $ do
 
 -- Property based testing
 
-prop_findExistingSum :: Int -> Int -> Property
-prop_findExistingSum x y =
-  forAll (listOf arbitrary) $ \ints ->
-    hasPairSum (x + y) (Vector.fromList (sort (x : y : ints)))
+prop_findExistingSum :: Int -> Int -> [Int] -> Bool
+prop_findExistingSum x y ints =
+  hasPairSum (x + y) (Vector.fromList (sort (x : y : ints)))
 
-prop_noExistingSum :: Property
-prop_noExistingSum =
-  forAll (listOf arbitrary) $ \ints ->
-    let sums = Set.fromList [x + y | (x:ys) <- tails ints, y <- ys]
-    in forAll arbitrary $ \total ->
-      not (Set.member total sums) ==>
-        not (hasPairSum total (Vector.fromList (sort ints)))
+prop_noExistingSum :: [Int] -> Property
+prop_noExistingSum ints =
+  let sums = Set.fromList [x + y | (x:ys) <- tails ints, y <- ys]
+  in forAll arbitrary $ \total ->
+    not (Set.member total sums) ==>
+      not (hasPairSum total (Vector.fromList (sort ints)))
 
 
 --------------------------------------------------------------------------------
@@ -151,27 +151,31 @@ instance (Ord i, Monoid o) => Encoding (Map i o) where
 
 type Bit = Char
 
-newtype DiffList a = DiffList { getDiffList :: [a] -> [a] }
+class Decoding symbol where
+  decode :: (Foldable f) => BinaryTree symbol -> f Bit -> [symbol]
+  decode huffTree = reverse . snd . foldl decodeOne (huffTree, [])
+    where
+      decodeOne (BinaryNode l r, res) bit =
+        let nextTree = if bit == '0' then l else r
+        in case nextTree of
+            BinaryLeaf x -> (huffTree, x : res)
+            _ -> (nextTree, res)
 
-toDiffList :: [a] -> DiffList a
-toDiffList xs = DiffList (xs++)
+instance Decoding Char where
+  decode huffTree =
+    Text.unpack . Builder.toLazyText
+      . snd . foldl decodeOne (huffTree, Builder.fromString [])
+    where
+      decodeOne (BinaryNode l r, res) bit =
+        let nextTree = if bit == '0' then l else r
+        in case nextTree of
+            BinaryLeaf x -> (huffTree, res `mappend` Builder.singleton x)
+            _ -> (nextTree, res)
 
-fromDiffList :: DiffList a -> [a]
-fromDiffList (DiffList f) = f []
+{-
+decode' :: (Foldable f) => BinaryTree a -> f Bit -> [a]
 
-instance Monoid (DiffList a) where
-  mempty = DiffList (\xs -> [] ++ xs)
-  (DiffList f) `mappend` (DiffList g) = DiffList (\xs -> f (g xs))
-
-decode :: (Foldable f) => BinaryTree a -> f Bit -> [a]
-decode huffTree = fromDiffList . snd . foldl decodeOne (huffTree, toDiffList [])
-  where
-    decodeOne (BinaryNode l r, res) bit =
-      let nextTree = if bit == '0' then l else r
-      in case nextTree of
-          BinaryLeaf x -> (huffTree, res `mappend` toDiffList [x])
-          _ -> (nextTree, res)
-
+-}
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
 
@@ -216,6 +220,9 @@ anyPrefixOfSuffix xs =
 prop_noPrefixOtherSuffix :: [(Freq, Char)] -> Bool
 prop_noPrefixOtherSuffix =
   not . anyPrefixOfSuffix . fmap snd . huffmanCode
+
+prop_encodeDecode :: [(Freq, Char)] -> Bool
+prop_encodeDecode = undefined
 
 
 --------------------------------------------------------------------------------
