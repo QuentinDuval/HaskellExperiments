@@ -1,4 +1,4 @@
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeFamilies, DeriveFunctor #-}
 module PBTExamples where
 
 import Control.Arrow
@@ -102,23 +102,17 @@ popMins m n =
   in (kv:kvs, m'')
 
 -- Generic encoder / decoder
--- TODO: same thing in fact... decoder is encoder...
--- TODO: true difference is stateful VS stateless
 -- TODO: do you really need the Monoid? and Foldable?
 
-newtype Encoder i o = Encoder { runEncoder :: i -> Maybe o }
-newtype Decoder i o = Decoder { runDecoder :: i -> (Maybe o, Decoder i o) }
+newtype Encoder i o = Encoder { runDecoder :: i -> (Maybe o, Encoder i o) }
 
 encode :: (Foldable f, Monoid o) => Encoder i o -> f i -> o
-encode encoder = foldMap (fromMaybe mempty . runEncoder encoder)
-
-decode :: (Foldable f) => Decoder i o -> f i -> [o]
-decode decoder = loop decoder . foldr (:) []
+encode decoder = loop decoder . foldr (:) []
   where
-    loop decoder [] = []
+    loop decoder [] = mempty
     loop decoder (x:xs) =
       case runDecoder decoder x of
-        (Just o, decoder') -> o : loop decoder' xs
+        (Just o, decoder') -> mappend o (loop decoder' xs)
         (Nothing, decoder') -> loop decoder' xs
 
 -- Huffman encoding tree
@@ -129,6 +123,7 @@ type Code = String
 data BinaryTree a
   = BinaryNode { lhs, rhs :: BinaryTree a }
   | BinaryLeaf { value :: a }
+  deriving (Show, Eq, Ord, Functor)
 
 mergeHuffmanTree :: (Freq, BinaryTree a) -> (Freq, BinaryTree a) -> (Freq, BinaryTree a)
 mergeHuffmanTree (w1, t1) (w2, t2) = (w1 + w2, BinaryNode t1 t2)
@@ -152,16 +147,17 @@ treeToCode (BinaryNode l r) =
 type Bit = Char
 
 toEncoder :: (Ord symbol) => BinaryTree symbol -> Encoder symbol Code
-toEncoder huffTree = Encoder (\i -> Map.lookup i encoding)
-  where encoding = Map.fromList (treeToCode huffTree)
+toEncoder huffTree = encoder where
+  encoder = Encoder $ \i -> (Map.lookup i encoding, encoder)
+  encoding = Map.fromList (treeToCode huffTree)
 
-toDecoder :: BinaryTree symbol -> Decoder Bit symbol
-toDecoder huffTree = decoder huffTree huffTree
-  where
-    decoder fullTree (BinaryNode l r) = Decoder $ \bit ->
-      case (if bit == '0' then l else r) of
-        BinaryLeaf symbol -> (Just symbol, decoder fullTree fullTree)
-        nextTree -> (Nothing, decoder fullTree nextTree)
+toDecoder :: BinaryTree symbol -> Encoder Bit [symbol]
+toDecoder huffTree = decoder fullTree where
+  fullTree = fmap (\x -> [x]) huffTree
+  decoder (BinaryNode l r) = Encoder $ \bit ->
+    case (if bit == '0' then l else r) of
+      BinaryLeaf symbol -> (Just symbol, decoder fullTree)
+      nextTree -> (Nothing, decoder nextTree)
 
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
@@ -193,7 +189,7 @@ test_huffmanEncoding = TestCase $ do
 test_huffmanDecoding :: Test
 test_huffmanDecoding = TestCase $ do
   let decoder = toDecoder (huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')])
-  assertEqual "3 symbols" "abc" (decode decoder "00011")
+  assertEqual "3 symbols" "abc" (encode decoder "00011")
 
 
 -- Property based tests
@@ -217,7 +213,7 @@ prop_encodeDecode freqs =
         decoder = toDecoder (huffmanTree freqs)
         encoder = toEncoder (huffmanTree freqs)
     in forAll (listOf (elements chars)) $ \text ->
-        decode decoder (encode encoder text) == text
+        encode decoder (encode encoder text) == text
 
 
 --------------------------------------------------------------------------------
