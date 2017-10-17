@@ -2,6 +2,9 @@
 module PBTExamples where
 
 import Control.Arrow
+import Control.Monad.Identity
+import Data.Conduit
+import qualified Data.Conduit.List as CL
 import Data.List
 import Data.Maybe
 import qualified Data.Text.Lazy as Text
@@ -102,18 +105,10 @@ popMins m n =
   in (kv:kvs, m'')
 
 -- Generic encoder / decoder
--- TODO: do you really need the Monoid? and Foldable?
 
-newtype Encoder i o = Encoder { runDecoder :: i -> (Maybe o, Encoder i o) }
-
-encode :: (Foldable f, Monoid o) => Encoder i o -> f i -> o
-encode decoder = loop decoder . foldr (:) []
-  where
-    loop decoder [] = mempty
-    loop decoder (x:xs) =
-      case runDecoder decoder x of
-        (Just o, decoder') -> mappend o (loop decoder' xs)
-        (Nothing, decoder') -> loop decoder' xs
+encode :: (Foldable f) => Conduit i Identity o -> f i -> [o]
+encode decoder inputs = runConduitPure $
+  CL.sourceList (foldr (:) [] inputs) .| decoder .| CL.consume
 
 -- Huffman encoding tree
 
@@ -146,18 +141,25 @@ treeToCode (BinaryNode l r) =
 
 type Bit = Char
 
-toEncoder :: (Ord symbol) => BinaryTree symbol -> Encoder symbol Code
-toEncoder huffTree = encoder where
-  encoder = Encoder $ \i -> (Map.lookup i encoding, encoder)
-  encoding = Map.fromList (treeToCode huffTree)
+toEncoder :: (Monad m, Ord symbol) => BinaryTree symbol -> Conduit symbol m Bit
+toEncoder huffTree =
+  -- TODO: use CL.mapFoldable
+  let encoding = Map.fromList (treeToCode huffTree)
+  in awaitForever $ \i ->
+    case Map.lookup i encoding of
+      Just o -> mapM_ yield o
+      Nothing -> pure ()
 
-toDecoder :: BinaryTree symbol -> Encoder Bit [symbol]
-toDecoder huffTree = decoder fullTree where
-  fullTree = fmap (\x -> [x]) huffTree
-  decoder (BinaryNode l r) = Encoder $ \bit ->
-    case (if bit == '0' then l else r) of
-      BinaryLeaf symbol -> (Just symbol, decoder fullTree)
-      nextTree -> (Nothing, decoder nextTree)
+toDecoder :: (Monad m, Ord symbol) => BinaryTree symbol -> Conduit Bit m symbol
+toDecoder huffTree = loop huffTree
+  where
+    loop currTree@(BinaryNode l r) = do
+      bit <- await
+      case bit of
+        Just bit -> case (if bit == '0' then l else r) of
+          BinaryLeaf symbol -> yield symbol >> loop huffTree
+          nextTree -> loop nextTree
+        Nothing -> pure ()
 
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
