@@ -104,6 +104,7 @@ popMins m n =
 -- Generic encoder / decoder
 -- TODO: same thing in fact... decoder is encoder...
 -- TODO: true difference is stateful VS stateless
+-- TODO: do you really need the Monoid? and Foldable?
 
 newtype Encoder i o = Encoder { runEncoder :: i -> Maybe o }
 newtype Decoder i o = Decoder { runDecoder :: i -> (Maybe o, Decoder i o) }
