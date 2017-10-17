@@ -102,6 +102,8 @@ popMins m n =
   in (kv:kvs, m'')
 
 -- Generic encoder / decoder
+-- TODO: same thing in fact... decoder is encoder...
+-- TODO: true difference is stateful VS stateless
 
 newtype Encoder i o = Encoder { runEncoder :: i -> Maybe o }
 newtype Decoder i o = Decoder { runDecoder :: i -> (Maybe o, Decoder i o) }
