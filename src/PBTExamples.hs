@@ -139,36 +139,18 @@ huffmanCode freqs = treeToCode (huffmanTree freqs)
 encode :: (Foldable f, Monoid o) => (i -> Maybe o) -> f i -> o
 encode encoding = foldMap (fromMaybe mempty . encoding)
 
-
 -- Decoding
 
 type Bit = Char
 
-class Decoding symbol where
-  decode :: (Foldable f) => BinaryTree symbol -> f Bit -> [symbol]
-  decode huffTree = reverse . snd . foldl decodeOne (huffTree, [])
-    where
-      decodeOne (BinaryNode l r, res) bit =
-        let nextTree = if bit == '0' then l else r
-        in case nextTree of
-            BinaryLeaf x -> (huffTree, x : res)
-            _ -> (nextTree, res)
-
-instance Decoding Char where
-  decode huffTree =
-    Text.unpack . Builder.toLazyText
-      . snd . foldl decodeOne (huffTree, Builder.fromString [])
-    where
-      decodeOne (BinaryNode l r, res) bit =
-        let nextTree = if bit == '0' then l else r
-        in case nextTree of
-            BinaryLeaf x -> (huffTree, res `mappend` Builder.singleton x)
-            _ -> (nextTree, res)
-
-{-
-decode' :: (Foldable f) => BinaryTree a -> f Bit -> [a]
-
--}
+decode :: (Foldable f) => BinaryTree symbol -> f Bit -> [symbol]
+decode huffTree = loop huffTree . foldr (:) []
+  where
+    loop _ [] = []
+    loop (BinaryNode l r) (bit:bits) =
+      case (if bit == '0' then l else r) of
+        BinaryLeaf symbol -> symbol : loop huffTree bits
+        nextTree -> loop nextTree bits
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
 
