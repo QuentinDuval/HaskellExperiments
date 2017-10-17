@@ -145,7 +145,7 @@ instance (Ord i, Monoid o) => Encoding (Map i o) where
   type EncodingIn (Map i o) = i
   type EncodingOut (Map i o) = o
   encode encoding =
-    foldr (\i out -> mappend (encoding Map.! i) out) mempty
+    foldMap (\i -> fromMaybe mempty (Map.lookup i encoding))
 
 -- Decoding
 
