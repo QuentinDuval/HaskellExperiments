@@ -104,12 +104,6 @@ popMins m n =
       (kvs, m'') = popMins m' (pred n)
   in (kv:kvs, m'')
 
--- Generic encoder / decoder
-
-encode :: (Foldable f) => Conduit i Identity o -> f i -> [o]
-encode decoder inputs = runConduitPure $
-  CL.sourceList (foldr (:) [] inputs) .| decoder .| CL.consume
-
 -- Huffman encoding tree
 
 type Freq = Int
@@ -143,23 +137,23 @@ type Bit = Char
 
 toEncoder :: (Monad m, Ord symbol) => BinaryTree symbol -> Conduit symbol m Bit
 toEncoder huffTree =
-  -- TODO: use CL.mapFoldable
   let encoding = Map.fromList (treeToCode huffTree)
-  in awaitForever $ \i ->
-    case Map.lookup i encoding of
-      Just o -> mapM_ yield o
-      Nothing -> pure ()
+  in CL.mapFoldable $ \i -> fromMaybe [] (Map.lookup i encoding)
 
-toDecoder :: (Monad m, Ord symbol) => BinaryTree symbol -> Conduit Bit m symbol
+toDecoder :: (Monad m) => BinaryTree symbol -> Conduit Bit m symbol
 toDecoder huffTree = loop huffTree
   where
     loop currTree@(BinaryNode l r) = do
       bit <- await
       case bit of
+        Nothing -> pure ()
         Just bit -> case (if bit == '0' then l else r) of
           BinaryLeaf symbol -> yield symbol >> loop huffTree
           nextTree -> loop nextTree
-        Nothing -> pure ()
+
+encode :: (Foldable f) => Conduit i Identity o -> f i -> [o]
+encode decoder inputs = runConduitPure $
+  forM_ inputs yield .| decoder .| CL.consume
 
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
@@ -171,11 +165,6 @@ toDecoder huffTree = loop huffTree
 
 test_huffmanCode :: Test
 test_huffmanCode = TestCase $ do
-  {-
-  assertEqual "no symbol"
-    ([] :: [(Char, Code)])
-    (huffmanCode [])
-  -}
   assertEqual "1 symbol"
     [('b', "")]
     (treeToCode $ huffmanTree [(1, 'b')])
