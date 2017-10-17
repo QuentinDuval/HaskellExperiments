@@ -136,16 +136,9 @@ huffmanCode freqs = treeToCode (huffmanTree freqs)
 
 -- Encoding
 
-class Encoding coding where
-  type EncodingIn coding :: *
-  type EncodingOut coding :: *
-  encode :: (Foldable f) => coding -> f (EncodingIn coding) -> EncodingOut coding
+encode :: (Foldable f, Monoid o) => (i -> Maybe o) -> f i -> o
+encode encoding = foldMap (fromMaybe mempty . encoding)
 
-instance (Ord i, Monoid o) => Encoding (Map i o) where
-  type EncodingIn (Map i o) = i
-  type EncodingOut (Map i o) = o
-  encode encoding =
-    foldMap (\i -> fromMaybe mempty (Map.lookup i encoding))
 
 -- Decoding
 
@@ -199,7 +192,8 @@ test_huffmanCode = TestCase $ do
 test_huffmanEncoding :: Test
 test_huffmanEncoding = TestCase $ do
   let code = Map.fromList $ huffmanCode [(1, 'a'), (2, 'b'), (3, 'c')]
-  assertEqual "3 symbols" "00011" (encode code "abc")
+      encoder i = Map.lookup i code
+  assertEqual "3 symbols" "00011" (encode encoder "abc")
 
 test_huffmanDecoding :: Test
 test_huffmanDecoding = TestCase $ do
