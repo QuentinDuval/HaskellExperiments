@@ -174,14 +174,13 @@ test_huffmanCode = TestCase $ do
   [('b',"00"),('a',"01"),('c',"1")] @=? treeToCode (huffmanTree [(2, 'a'), (1, 'b'), (3, 'c')])
 
 test_huffmanEncoding :: Test
-test_huffmanEncoding = TestCase $ do
-  let encoder = toEncoder (huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')])
-  assertEqual "3 symbols" "00011" (encode encoder "abc")
-
-test_huffmanDecoding :: Test
-test_huffmanDecoding = TestCase $ do
-  let decoder = toDecoder (huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')])
-  assertEqual "3 symbols" "abc" (encode decoder "00011")
+test_huffmanEncoding =
+  let huffTree = huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')]
+      encoder = toEncoder huffTree
+      decoder = toDecoder huffTree
+  in TestCase $ do
+      "00011" @=? encode encoder "abc"
+      "abc" @=? encode decoder "00011"
 
 
 -- Property based tests
@@ -216,8 +215,7 @@ all_tests :: IO Counts
 all_tests = runTestTT $
   TestList [ test_hasPairSum
            , test_huffmanCode
-           , test_huffmanEncoding
-           , test_huffmanDecoding ]
+           , test_huffmanEncoding ]
 
 pbt_tests :: IO ()
 pbt_tests = do
