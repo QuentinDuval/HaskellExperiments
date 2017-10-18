@@ -114,46 +114,44 @@ popMins m n =
 type Freq = Int
 type Code = String
 
-data BinaryTree a
-  = BinaryNode { lhs, rhs :: BinaryTree a }
-  | BinaryLeaf { value :: a }
+data HuffmanTree a
+  = HuffmanNode (HuffmanTree a) (HuffmanTree a)
+  | HuffmanLeaf a
   deriving (Show, Eq, Ord, Functor)
 
-mergeHuffmanTree :: (Freq, BinaryTree a) -> (Freq, BinaryTree a) -> (Freq, BinaryTree a)
-mergeHuffmanTree (w1, t1) (w2, t2) = (w1 + w2, BinaryNode t1 t2)
-
-huffmanTree :: [(Freq, a)] -> BinaryTree a
-huffmanTree = loop . makeHeap . fmap (second BinaryLeaf)
+huffmanTree :: [(Freq, a)] -> HuffmanTree a
+huffmanTree = loop . makeHeap . fmap (second HuffmanLeaf)
   where
+    mergeTrees (w1, t1) (w2, t2) = (w1 + w2, HuffmanNode t1 t2)
     loop h
       | heapSize h < 2 = snd (fst (popMin h))
       | otherwise =
-        let ([x, y], h') = popMins h 2
-        in loop $ insertHeap h' (mergeHuffmanTree x y)
+        let ([t1, t2], h') = popMins h 2
+        in loop (insertHeap h' (mergeTrees t1 t2))
 
-treeToCode :: BinaryTree symbol -> [(symbol, Code)]
-treeToCode (BinaryLeaf a) = [(a, "")]
-treeToCode (BinaryNode l r) =
+treeToCode :: HuffmanTree symbol -> [(symbol, Code)]
+treeToCode (HuffmanLeaf a) = [(a, "")]
+treeToCode (HuffmanNode l r) =
   fmap (second ('0':)) (treeToCode l) ++ fmap (second ('1':)) (treeToCode r)
 
 -- Encoding / Decoding
 
 type Bit = Char
 
-toEncoder :: (Monad m, Ord symbol) => BinaryTree symbol -> Conduit symbol m Bit
+toEncoder :: (Monad m, Ord symbol) => HuffmanTree symbol -> Conduit symbol m Bit
 toEncoder huffTree =
   let encoding = Map.fromList (treeToCode huffTree)
   in CL.mapFoldable $ \i -> fromMaybe [] (Map.lookup i encoding)
 
-toDecoder :: (Monad m) => BinaryTree symbol -> Conduit Bit m symbol
+toDecoder :: (Monad m) => HuffmanTree symbol -> Conduit Bit m symbol
 toDecoder huffTree = loop huffTree
   where
-    loop currTree@(BinaryNode l r) = do
+    loop currTree@(HuffmanNode l r) = do
       bit <- await
       case bit of
         Nothing -> pure ()
         Just bit -> case (if bit == '0' then l else r) of
-          BinaryLeaf symbol -> yield symbol >> loop huffTree
+          HuffmanLeaf symbol -> yield symbol >> loop huffTree
           nextTree -> loop nextTree
 
 runEncoder :: (Foldable f) => Conduit i Identity o -> f i -> [o]
