@@ -57,7 +57,10 @@ test_hasPairSum = TestCase $ do
 
 prop_findExistingSum :: Int -> Int -> [Int] -> Bool
 prop_findExistingSum x y ints =
-  hasPairSum (x + y) (Vector.fromList (sort (x : y : ints)))
+  let sortedInts = Vector.fromList (sort (x : y : ints))
+  in case pairSum (x + y) sortedInts of
+      Nothing -> False
+      Just (i, j) -> x + y == sortedInts ! i + sortedInts ! j
 
 prop_noExistingSum :: [Int] -> Property
 prop_noExistingSum ints =
