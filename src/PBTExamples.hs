@@ -45,9 +45,10 @@ hasPairSum total = isJust . pairSum total
 
 test_hasPairSum :: Test
 test_hasPairSum = TestCase $ do
-  assertEqual "Success case" True $ hasPairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
-  assertEqual "Success case" (Just (2, 3)) $ pairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
-  assertEqual "Failure case" False $ hasPairSum 8 (Vector.fromList [1, 3, 4, 6, 9])
+  True  @=? hasPairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
+  False @=? hasPairSum 8 (Vector.fromList [1, 3, 4, 6, 9])
+  Just (2, 3) @=? pairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
+
 
 -- Proof:
 -- INVARIANT = distance to the right position if they exist
@@ -169,12 +170,8 @@ encode decoder inputs = runConduitPure $
 
 test_huffmanCode :: Test
 test_huffmanCode = TestCase $ do
-  assertEqual "1 symbol"
-    [('b', "")]
-    (treeToCode $ huffmanTree [(1, 'b')])
-  assertEqual "3 symbols"
-    [('b',"00"),('a',"01"),('c',"1")]
-    (treeToCode $ huffmanTree [(2, 'a'), (1, 'b'), (3, 'c')])
+  [('b', "")] @=? treeToCode (huffmanTree [(1, 'b')])
+  [('b',"00"),('a',"01"),('c',"1")] @=? treeToCode (huffmanTree [(2, 'a'), (1, 'b'), (3, 'c')])
 
 test_huffmanEncoding :: Test
 test_huffmanEncoding = TestCase $ do
