@@ -182,6 +182,13 @@ test_huffmanEncoding =
       "00011" @=? encode encoder "abc"
       "abc" @=? encode decoder "00011"
 
+test_huffmanRoundtrip :: Test
+test_huffmanRoundtrip =
+  let huffTree = huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')]
+      encoder = toEncoder huffTree
+      decoder = toDecoder huffTree
+  in TestCase $ "abc" @=? encode decoder (encode encoder "abc")
+
 
 -- Property based tests
 -- * No prefix of other suffix
@@ -215,7 +222,8 @@ all_tests :: IO Counts
 all_tests = runTestTT $
   TestList [ test_hasPairSum
            , test_huffmanCode
-           , test_huffmanEncoding ]
+           , test_huffmanEncoding
+           , test_huffmanRoundtrip ]
 
 pbt_tests :: IO ()
 pbt_tests = do
