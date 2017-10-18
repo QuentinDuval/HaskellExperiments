@@ -5,6 +5,7 @@ import Control.Arrow
 import Control.Monad.Identity
 import Data.Conduit
 import qualified Data.Conduit.List as CL
+import Data.Foldable(for_)
 import Data.List
 import Data.Maybe
 import qualified Data.Text.Lazy as Text
@@ -153,7 +154,7 @@ toDecoder huffTree = loop huffTree
 
 encode :: (Foldable f) => Conduit i Identity o -> f i -> [o]
 encode decoder inputs = runConduitPure $
-  forM_ inputs yield .| decoder .| CL.consume
+  for_ inputs yield .| decoder .| CL.consume
 
 
 -- Proof : Show that the huffman encoding is minimal according to Shanon
