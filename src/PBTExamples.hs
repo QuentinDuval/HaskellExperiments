@@ -156,8 +156,8 @@ toDecoder huffTree = loop huffTree
           BinaryLeaf symbol -> yield symbol >> loop huffTree
           nextTree -> loop nextTree
 
-encode :: (Foldable f) => Conduit i Identity o -> f i -> [o]
-encode decoder inputs = runConduitPure $
+runEncoder :: (Foldable f) => Conduit i Identity o -> f i -> [o]
+runEncoder decoder inputs = runConduitPure $
   for_ inputs yield .| decoder .| CL.consume
 
 
@@ -179,15 +179,15 @@ test_huffmanEncoding =
       encoder = toEncoder huffTree
       decoder = toDecoder huffTree
   in TestCase $ do
-      "00011" @=? encode encoder "abc"
-      "abc" @=? encode decoder "00011"
+      "00011" @=? runEncoder encoder "abc"
+      "abc" @=? runEncoder decoder "00011"
 
 test_huffmanRoundtrip :: Test
 test_huffmanRoundtrip =
   let huffTree = huffmanTree [(1, 'a'), (2, 'b'), (3, 'c')]
       encoder = toEncoder huffTree
       decoder = toDecoder huffTree
-  in TestCase $ "abc" @=? encode decoder (encode encoder "abc")
+  in TestCase $ "abc" @=? runEncoder decoder (runEncoder encoder "abc")
 
 
 -- Property based tests
@@ -211,7 +211,7 @@ prop_encodeDecode freqs =
         decoder = toDecoder (huffmanTree freqs)
         encoder = toEncoder (huffmanTree freqs)
     in forAll (listOf (elements chars)) $ \text ->
-        encode decoder (encode encoder text) == text
+        runEncoder decoder (runEncoder encoder text) == text
 
 
 --------------------------------------------------------------------------------
