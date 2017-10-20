@@ -52,6 +52,7 @@ test_hasPairSum = TestCase $ do
   -- Tests cases you might forget (and which might be better expressed with forAll)
   False @=? hasPairSum 8 (Vector.fromList [])
   False @=? hasPairSum 8 (Vector.fromList [8])
+  True  @=? hasPairSum 8 (Vector.fromList [0, 8])
   True  @=? hasPairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
   Just (2, 3) @=? pairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
 
@@ -75,6 +76,7 @@ prop_noExistingSum ints =
   let sums = Set.fromList [x + y | (x:ys) <- tails ints, y <- ys]
   in forAll arbitrary $ \total ->
     not (Set.member total sums) ==>
+      -- collect (length ints) $
       not (hasPairSum total (Vector.fromList (sort ints)))
 
 prop_noPairsInSmallLists :: Int -> Bool
@@ -82,6 +84,13 @@ prop_noPairsInSmallLists n =
   not (hasPairSum n (Vector.fromList []))
   && not (hasPairSum n (Vector.fromList [n]))
 
+prop_findExistingSum' :: Int -> [Int] -> Property
+prop_findExistingSum' total ints =
+  let sortedInts = Vector.fromList (sort ints)
+  in collect (hasPairSum total sortedInts) $
+      case pairSum total sortedInts of
+        Nothing -> True -- Testing the counter is EXPENSIVE (NP stuff - prooving false = search all space)
+        Just (i, j) -> i /= j && total == sortedInts ! i + sortedInts ! j
 
 
 --------------------------------------------------------------------------------
