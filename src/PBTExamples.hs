@@ -28,7 +28,9 @@ import Test.QuickCheck
 -- * Other cases (Hash map)
 --------------------------------------------------------------------------------
 
-pairSum :: Int -> Vector Int -> Maybe (Int, Int)
+type Index = Int
+
+pairSum :: Int -> Vector Int -> Maybe (Index, Index)
 pairSum total ints = loop 0 (Vector.length ints - 1) where
   loop i j
     | i >= j = Nothing
