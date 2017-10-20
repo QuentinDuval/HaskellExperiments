@@ -19,6 +19,7 @@ library
                      , Arithmetic
                      , Arithmetic2
                      , BinarySearch
+                     , BulkSave
                      , Catamorphism
                      , CatamorphismTutorial
                      , Coroutine
