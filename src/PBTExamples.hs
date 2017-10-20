@@ -84,6 +84,7 @@ prop_noPairsInSmallLists n =
   not (hasPairSum n (Vector.fromList []))
   && not (hasPairSum n (Vector.fromList [n]))
 
+-- One approach, but dangerous (use collect) in terms of probabilities
 prop_findExistingSum' :: Int -> [Int] -> Property
 prop_findExistingSum' total ints =
   let sortedInts = Vector.fromList (sort ints)
