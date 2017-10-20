@@ -45,8 +45,14 @@ hasPairSum total = isJust . pairSum total
 
 test_hasPairSum :: Test
 test_hasPairSum = TestCase $ do
-  True  @=? hasPairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
   False @=? hasPairSum 8 (Vector.fromList [1, 3, 4, 6, 9])
+  True  @=? hasPairSum 8 (Vector.fromList [1, 3, 4, 7, 9])
+  Just (0, 3) @=? pairSum 8 (Vector.fromList [1, 3, 4, 7, 9])
+
+  -- Tests cases you might forget (and which might be better expressed with forAll)
+  False @=? hasPairSum 8 (Vector.fromList [])
+  False @=? hasPairSum 8 (Vector.fromList [8])
+  True  @=? hasPairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
   Just (2, 3) @=? pairSum 8 (Vector.fromList [1, 3, 4, 4, 9])
 
 
@@ -69,6 +75,12 @@ prop_noExistingSum ints =
   in forAll arbitrary $ \total ->
     not (Set.member total sums) ==>
       not (hasPairSum total (Vector.fromList (sort ints)))
+
+prop_noPairsInSmallLists :: Int -> Bool
+prop_noPairsInSmallLists n =
+  not (hasPairSum n (Vector.fromList []))
+  && not (hasPairSum n (Vector.fromList [n]))
+
 
 
 --------------------------------------------------------------------------------
@@ -227,6 +239,7 @@ pbt_tests :: IO ()
 pbt_tests = do
   quickCheck prop_findExistingSum
   quickCheck prop_noExistingSum
+  quickCheck prop_noPairsInSmallLists
   quickCheck prop_noPrefixOtherSuffix
   quickCheck prop_encodeDecode
 
