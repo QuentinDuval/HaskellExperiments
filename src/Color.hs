@@ -3,9 +3,12 @@ module Color where
 import Data.Ratio
 import Test.QuickCheck
 
--- data Color = Color { r, g, b, a :: Double } -- Fails
 data Color = Color { r, g, b, a :: Rational }
   deriving (Show, Eq, Ord)
+
+-- data Color = Color { r, g, b, a :: Double } -- Fails
+-- TODO: double multiplication is not associative,
+--       BUT you can get it associative by composing * functions instead
 
 over :: Color -> Color -> Color
 over c1 c2 = Color
