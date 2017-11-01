@@ -22,6 +22,7 @@ library
                      , BulkSave
                      , Catamorphism
                      , CatamorphismTutorial
+                     , Color
                      , Coroutine
                      , DepTypes
                      , FiboIter
