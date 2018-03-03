@@ -7,6 +7,7 @@ module TLCQ (
 import Control.Concurrent
 import Control.Monad
 import qualified Data.Map as M
+import System.IO.Unsafe(unsafePerformIO)
 
 --------------------------------------------------------------------------------
 -- Utils
@@ -24,9 +25,7 @@ class Monad m => IAsync m where
     await :: MVar a -> m a
 
 instance IAsync IO where
-    sync io = do
-        a <- io
-        newMVar a
+    sync io = io >>= newMVar
     async io = do
         mvar <- newEmptyMVar
         forkIO (io >>= putMVar mvar)
@@ -36,7 +35,6 @@ instance IAsync IO where
 -- chain :: MVar a -> (a -> b) -> MVar b
 chain :: MVar a -> (a -> b) -> IO (MVar b) -- TODO: Functor? How? Async?
 chain m f = async (f <$> await m)
-
 
 
 --------------------------------------------------------------------------------
@@ -110,10 +108,19 @@ instance IRepository InMemoryRepository where
 -- Infrastructure code (distance call for trade versions)
 --------------------------------------------------------------------------------
 
+ioMutex :: MVar ()
+{-# NOINLINE ioMutex #-}
+ioMutex = unsafePerformIO (newMVar ())
+
+logInfo :: (MonadIO m) => String -> m ()
+logInfo s = liftIO $ do
+    takeMVar ioMutex
+    putStrLn s
+    putMVar ioMutex ()
+
 httpGetTradeVersions :: MonadIO m => TimelineId -> m [Transition]
 httpGetTradeVersions timelineId = do
-    -- TODO: the IO should be synced...
-    -- liftIO (putStrLn $ "Query for timeline " ++ show timelineId)
+    logInfo ("Query for timeline " ++ show timelineId)
     liftIO (threadDelay 500000)
     if timelineId == 1 then
         return [Transition "a1" "b1", Transition "b1" "c"]
@@ -201,6 +208,8 @@ tlcqTests = do
         t1 <- genealogicTree 1
         t2 <- genealogicTree 2
         liftIO (print (t1, t2))
+
+    -- To show that it does not reuse the same cache (we could however do it)
     withProduction cache $ do
         t1 <- genealogicTree 2
         t2 <- genealogicTree 3
