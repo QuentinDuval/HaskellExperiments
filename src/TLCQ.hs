@@ -36,6 +36,16 @@ instance IAsync IO where
 chain :: MVar a -> (a -> b) -> IO (MVar b) -- TODO: Functor? How? Async?
 chain m f = async (f <$> await m)
 
+ioMutex :: MVar ()
+{-# NOINLINE ioMutex #-}
+ioMutex = unsafePerformIO (newMVar ())
+
+logInfo :: (MonadIO m) => String -> m ()
+logInfo s = liftIO $ do
+    takeMVar ioMutex
+    putStrLn s
+    putMVar ioMutex ()
+
 
 --------------------------------------------------------------------------------
 -- Domain code
@@ -77,6 +87,7 @@ data InMemoryDataSource = InMemoryDataSource
     , tradeVersions_ :: M.Map TimelineId [Transition]
     } deriving (Show, Eq, Ord)
 
+-- With such a threading of the state, no parallelization is possible
 data InMemoryRepository a = InMemoryRepository
     { runInMemory :: InMemoryDataSource -> (a, InMemoryDataSource) }
 
@@ -97,39 +108,16 @@ instance Applicative InMemoryRepository where
     (<*>) = ap
 
 instance IRepository InMemoryRepository where
-    tradeVersions timelineId =
-        InMemoryRepository $ \db -> (M.findWithDefault [] timelineId (tradeVersions_ db), db)
-    connectedTimelines timelineId =
-        InMemoryRepository $ \db -> (M.findWithDefault [] timelineId (connectedTimelines_ db), db)
+    tradeVersions timelineId = InMemoryRepository $ \db ->
+        (M.findWithDefault [] timelineId (tradeVersions_ db), db)
+    connectedTimelines timelineId = InMemoryRepository $ \db ->
+        (M.findWithDefault [] timelineId (connectedTimelines_ db), db)
     insert = undefined -- TODO
 
 
 --------------------------------------------------------------------------------
 -- Infrastructure code (distance call for trade versions)
 --------------------------------------------------------------------------------
-
-ioMutex :: MVar ()
-{-# NOINLINE ioMutex #-}
-ioMutex = unsafePerformIO (newMVar ())
-
-logInfo :: (MonadIO m) => String -> m ()
-logInfo s = liftIO $ do
-    takeMVar ioMutex
-    putStrLn s
-    putMVar ioMutex ()
-
-httpGetTradeVersions :: MonadIO m => TimelineId -> m [Transition]
-httpGetTradeVersions timelineId = do
-    logInfo ("Query for timeline " ++ show timelineId)
-    liftIO (threadDelay 1000000)
-    if timelineId == 1 then
-        return [Transition "a1" "b1", Transition "b1" "c"]
-    else if timelineId == 2 then
-        return [Transition "a2" "b2", Transition "b2" "c"]
-    else if timelineId == 3 then
-        return [Transition "c" "d1"]
-    else
-        return []
 
 type Cache = InMemoryDataSource
 
@@ -173,22 +161,42 @@ instance MonadIO ProductionRepository where
     liftIO io = ProductionRepository $ \db -> sync io
 
 instance IRepository ProductionRepository where
-    tradeVersions timelineId =
-        ProductionRepository $ \dbVar -> do
-            db <- readMVar dbVar
-            case M.lookup timelineId (tradeVersions_ db) of
-                Just transitions -> sync (pure transitions)
-                Nothing -> async $ do
-                    transitions <- httpGetTradeVersions timelineId
-                    db <- takeMVar dbVar -- Fill the cache
-                    putMVar dbVar $ db { tradeVersions_ = M.insert timelineId transitions (tradeVersions_ db) }
-                    pure transitions
-    connectedTimelines timelineId =
-        ProductionRepository $ \dbVar -> do
-            db <- readMVar dbVar
-            sync $ pure (M.findWithDefault [] timelineId (connectedTimelines_ db))
+    tradeVersions timelineId = ProductionRepository $ \dbVar ->
+        fetchTradeVersions dbVar timelineId
+    connectedTimelines timelineId = ProductionRepository $ \dbVar -> do
+        db <- readMVar dbVar
+        let timelines = M.findWithDefault [] timelineId (connectedTimelines_ db)
+        sync (pure timelines)
     insert = undefined -- TODO
 
+fetchTradeVersions :: MVar Cache -> TimelineId -> IO (MVar [Transition])
+fetchTradeVersions dbVar timelineId = do
+    db <- readMVar dbVar
+    case M.lookup timelineId (tradeVersions_ db) of
+        Just transitions -> sync (pure transitions)
+        Nothing -> async $ do
+            transitions <- httpGetTradeVersions timelineId
+            addInCache dbVar timelineId transitions
+            pure transitions
+
+addInCache :: MVar Cache -> TimelineId -> [Transition] -> IO ()
+addInCache dbVar timelineId transitions = do
+    db <- takeMVar dbVar
+    putMVar dbVar $
+        db { tradeVersions_ = M.insert timelineId transitions (tradeVersions_ db) }
+
+httpGetTradeVersions :: MonadIO m => TimelineId -> m [Transition]
+httpGetTradeVersions timelineId = do
+    logInfo ("Query for timeline " ++ show timelineId)
+    liftIO (threadDelay 1000000)
+    if timelineId == 1 then
+        return [Transition "a1" "b1", Transition "b1" "c"]
+    else if timelineId == 2 then
+        return [Transition "a2" "b2", Transition "b2" "c"]
+    else if timelineId == 3 then
+        return [Transition "c" "d1"]
+    else
+        return []
 
 
 --------------------------------------------------------------------------------
@@ -203,7 +211,10 @@ tlcqTests = do
                                                     , (2, [Transition "a2" "b2", Transition "b2" "c"] )
                                                     , (3, [Transition "c" "d1"])
                                                     ]}
-    print $ withInMemoryDb inMemoryDb (genealogicTree 1)
+    print $ withInMemoryDb inMemoryDb $ do
+        t1 <- genealogicTree 1
+        t2 <- genealogicTree 2
+        pure (t1, t2)
 
     let cache = InMemoryDataSource { connectedTimelines_ = connectedTimelines_ inMemoryDb, tradeVersions_ = M.fromList [] }
     withProduction cache $ do
