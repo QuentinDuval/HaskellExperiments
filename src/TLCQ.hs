@@ -19,10 +19,14 @@ instance MonadIO IO where
     liftIO = id
 
 class Monad m => IAsync m where
+    sync :: m a -> m (MVar a)
     async :: m a -> m (MVar a)
     await :: MVar a -> m a
 
 instance IAsync IO where
+    sync io = do
+        a <- io
+        newMVar a
     async io = do
         mvar <- newEmptyMVar
         forkIO (io >>= putMVar mvar)
@@ -108,7 +112,8 @@ instance IRepository InMemoryRepository where
 
 httpGetTradeVersions :: MonadIO m => TimelineId -> m [Transition]
 httpGetTradeVersions timelineId = do
-    liftIO (putStrLn $ "Query for timeline " ++ show timelineId)
+    -- TODO: the IO should be synced...
+    -- liftIO (putStrLn $ "Query for timeline " ++ show timelineId)
     liftIO (threadDelay 500000)
     if timelineId == 1 then
         return [Transition "a1" "b1", Transition "b1" "c"]
@@ -121,49 +126,58 @@ httpGetTradeVersions timelineId = do
 
 type Cache = InMemoryDataSource
 
--- TODO: this design cannot work for parallel computations (intrinsically sequential)
+-- The MVar is needed VS state monad to avoid sequential applicatives
 data ProductionRepository a = ProductionRepository
-    { runProduction :: Cache -> IO (MVar (a, Cache)) }
+    { runProduction :: MVar Cache -> IO (MVar a) }
 
 withProduction :: Cache -> ProductionRepository a -> IO a
 withProduction db f = do
-    var <- runProduction f db
-    val <- await var
-    pure (fst val)
-
-instance Monad ProductionRepository where
-    ra >>= f = ProductionRepository $ \db -> do
-        var <- runProduction ra db
-        (a, db') <- await var
-        runProduction (f a) db'
+    dbVar <- newMVar db
+    var <- runProduction f dbVar
+    await var
 
 instance Functor ProductionRepository where
     -- Chaining futures
     fmap f m = ProductionRepository $ \db -> do
         var <- runProduction m db
-        chain var $ \(a, db) -> (f a, db)
+        chain var f
 
 instance Applicative ProductionRepository where
-  pure a = ProductionRepository $ \db -> async $ pure (a, db)
-  -- TODO: Do things in parallel while the Monad does things sequentially (join DBs?)
-  (<*>) = ap
+    -- Parallel processing possible
+    pure a = ProductionRepository $ \db -> sync (pure a)
+    mf <*> ma = ProductionRepository $ \db -> do
+        fVar <- runProduction mf db
+        aVar <- runProduction ma db
+        async $ do
+            f <- await fVar
+            a <- await aVar
+            pure (f a)
+
+instance Monad ProductionRepository where
+    -- Sequential processing needed
+    ra >>= f = ProductionRepository $ \db -> do
+        var <- runProduction ra db
+        a <- await var
+        runProduction (f a) db
 
 instance MonadIO ProductionRepository where
-    liftIO io = ProductionRepository $ \db -> do
-        a <- io
-        async $ pure (a, db)
+    liftIO io = ProductionRepository $ \db -> sync io
 
 instance IRepository ProductionRepository where
     tradeVersions timelineId =
-        ProductionRepository $ \db -> do
+        ProductionRepository $ \dbVar -> do
+            db <- readMVar dbVar
             case M.lookup timelineId (tradeVersions_ db) of
-                Just transitions -> async $ pure (transitions, db)
+                Just transitions -> sync (pure transitions)
                 Nothing -> async $ do
                     transitions <- httpGetTradeVersions timelineId
-                    pure (transitions, db { tradeVersions_ = M.insert timelineId transitions (tradeVersions_ db) })
+                    db <- takeMVar dbVar -- Fill the cache
+                    putMVar dbVar $ db { tradeVersions_ = M.insert timelineId transitions (tradeVersions_ db) }
+                    pure transitions
     connectedTimelines timelineId =
-        ProductionRepository $ \db ->
-            async $ pure (M.findWithDefault [] timelineId (connectedTimelines_ db), db)
+        ProductionRepository $ \dbVar -> do
+            db <- readMVar dbVar
+            sync $ pure (M.findWithDefault [] timelineId (connectedTimelines_ db))
     insert = undefined -- TODO
 
 
