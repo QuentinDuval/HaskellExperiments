@@ -29,6 +29,11 @@ instance IAsync IO where
         pure mvar
     await a = takeMVar a
 
+-- chain :: MVar a -> (a -> b) -> MVar b
+chain :: MVar a -> (a -> b) -> IO (MVar b) -- TODO: Functor? How? Async?
+chain m f = async (f <$> await m)
+
+
 
 --------------------------------------------------------------------------------
 -- Domain code
@@ -114,41 +119,51 @@ httpGetTradeVersions timelineId = do
     else
         return []
 
--- TODO: where the in memory is a cache for the trade versions
-data ProductionRepository a = ProductionRepository
-    { runProduction :: InMemoryDataSource -> IO (a, InMemoryDataSource) }
+type Cache = InMemoryDataSource
 
-withProduction :: InMemoryDataSource -> ProductionRepository a -> IO a
-withProduction db f = fst <$> runProduction f db
+-- TODO: this design cannot work for parallel computations (intrinsically sequential)
+data ProductionRepository a = ProductionRepository
+    { runProduction :: Cache -> IO (MVar (a, Cache)) }
+
+withProduction :: Cache -> ProductionRepository a -> IO a
+withProduction db f = do
+    var <- runProduction f db
+    val <- await var
+    pure (fst val)
 
 instance Monad ProductionRepository where
-    return a = ProductionRepository $ \db -> pure (a, db)
     ra >>= f = ProductionRepository $ \db -> do
-        (a, db') <- runProduction ra db
+        var <- runProduction ra db
+        (a, db') <- await var
         runProduction (f a) db'
 
 instance Functor ProductionRepository where
-    fmap f pa = pa >>= pure . f
+    -- Chaining futures
+    fmap f m = ProductionRepository $ \db -> do
+        var <- runProduction m db
+        chain var $ \(a, db) -> (f a, db)
 
 instance Applicative ProductionRepository where
-    pure = return
-    (<*>) = ap      -- TODO : Do things in parallel! (and sequentially in the Monad - with continuation - and show in main that it does not block)
+  pure a = ProductionRepository $ \db -> async $ pure (a, db)
+  -- TODO: Do things in parallel while the Monad does things sequentially (join DBs?)
+  (<*>) = ap
 
 instance MonadIO ProductionRepository where
     liftIO io = ProductionRepository $ \db -> do
         a <- io
-        pure (a, db)
+        async $ pure (a, db)
 
 instance IRepository ProductionRepository where
     tradeVersions timelineId =
         ProductionRepository $ \db -> do
             case M.lookup timelineId (tradeVersions_ db) of
-                Just transitions -> pure (transitions, db)
-                Nothing -> do
+                Just transitions -> async $ pure (transitions, db)
+                Nothing -> async $ do
                     transitions <- httpGetTradeVersions timelineId
                     pure (transitions, db { tradeVersions_ = M.insert timelineId transitions (tradeVersions_ db) })
     connectedTimelines timelineId =
-        ProductionRepository $ \db -> pure (M.findWithDefault [] timelineId (connectedTimelines_ db), db)
+        ProductionRepository $ \db ->
+            async $ pure (M.findWithDefault [] timelineId (connectedTimelines_ db), db)
     insert = undefined -- TODO
 
 
