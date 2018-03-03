@@ -121,7 +121,7 @@ logInfo s = liftIO $ do
 httpGetTradeVersions :: MonadIO m => TimelineId -> m [Transition]
 httpGetTradeVersions timelineId = do
     logInfo ("Query for timeline " ++ show timelineId)
-    liftIO (threadDelay 500000)
+    liftIO (threadDelay 1000000)
     if timelineId == 1 then
         return [Transition "a1" "b1", Transition "b1" "c"]
     else if timelineId == 2 then
@@ -150,8 +150,10 @@ instance Functor ProductionRepository where
         chain var f
 
 instance Applicative ProductionRepository where
-    -- Parallel processing possible
     pure a = ProductionRepository $ \db -> sync (pure a)
+    -- Without parallel procesing
+    -- (<*>) = ap
+    -- With parallel processing
     mf <*> ma = ProductionRepository $ \db -> do
         fVar <- runProduction mf db
         aVar <- runProduction ma db
