@@ -71,6 +71,7 @@ class Monad m => WithProfileInfo m where
   lastPostsOf :: ProfileId -> m [BlogPost]
 
 -- This code is embarded in a "onConnection" use case... you cannot just separate effects
+-- TODO: save the suggested posts... and check it at the beginning... in context, would be reset by other notifications
 getSuggestedPosts :: (WithProfileInfo m) => ProfileId -> m [BlogPost]
 getSuggestedPosts userId = do
     friendIds <- friendsOf userId
