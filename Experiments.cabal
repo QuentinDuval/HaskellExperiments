@@ -41,6 +41,7 @@ library
                      , RMQ
                      , RMQ2
                      , Shape
+                     , SocialMedia
                      , TLCQ
                      , TrainingL
                      , Tree
