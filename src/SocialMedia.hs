@@ -131,8 +131,8 @@ instance IRepository InMemoryRepository where
 --------------------------------------------------------------------------------
 
 data Cache = Cache
-    { cachedFriendIds_ :: Map ProfileId [ProfileId]
-    , cachedSubjects_  :: Map ProfileId (Set Subject)
+    { cachedFriendIds_ :: Map ProfileId (MVar [ProfileId])
+    , cachedSubjects_  :: Map ProfileId (MVar (Set Subject))
     , cachedLastPosts_ :: Map ProfileId (MVar [BlogPost])
     }
 
@@ -176,75 +176,88 @@ instance MonadIO ProductionRepository where
     liftIO io = ProductionRepository $ \db -> sync io
 
 instance IRepository ProductionRepository where
-    friendsOf profileId = ProductionRepository $ \dbVar -> do
-        db <- readMVar dbVar
-        sync $ return $ Map.findWithDefault [] profileId (cachedFriendIds_ db)
-    subjectsOf profileId = ProductionRepository $ \dbVar -> do
-        db <- readMVar dbVar
-        sync $ return $ Map.findWithDefault Set.empty profileId (cachedSubjects_ db)
-    lastPostsOf profileId = ProductionRepository $ \dbVar ->
-        fetchPosts dbVar profileId
+    friendsOf profileId = ProductionRepository $ \dbVar -> fetchFriends dbVar profileId
+    subjectsOf profileId = ProductionRepository $ \dbVar -> fetchSubjects dbVar profileId
+    lastPostsOf profileId = ProductionRepository $ \dbVar -> fetchLastPosts dbVar profileId
 
-fetchPosts :: MVar Cache -> ProfileId -> IO (MVar [BlogPost])
-fetchPosts dbVar profileId = do
-    db <- readMVar dbVar
-    case Map.lookup profileId (cachedLastPosts_ db) of
-        Just posts -> pure posts
+fetchAndCache :: (Ord k) => Map k (MVar v) -> k -> (k -> IO (MVar v)) -> IO (MVar v, Map k (MVar v))
+fetchAndCache cache key f =
+    case Map.lookup key cache of
+        Just posts -> pure (posts, cache)
         Nothing -> do
-            -- Put the MVar in the map before completion to avoid multiple request to the same profileId
-            transitions <- httpGetLastPosts profileId
-            addInCache dbVar profileId transitions
-            pure transitions
+            result <- f key -- Put MVar in cache before completion (avoid multiple request to same key)
+            pure (result, Map.insert key result cache)
 
-addInCache :: MVar Cache -> ProfileId -> MVar [BlogPost] -> IO ()
-addInCache dbVar profileId posts = do
+--------------------------------------------------------------------------------
+
+fetchFriends :: MVar Cache -> ProfileId -> IO (MVar [ProfileId]) -- TODO: use lens to factorize
+fetchFriends dbVar profileId = do
     db <- takeMVar dbVar
-    putMVar dbVar $ db { cachedLastPosts_ = Map.insert profileId posts (cachedLastPosts_ db) }
+    (friends, cachedFriends) <- fetchAndCache (cachedFriendIds_ db) profileId httpGetFriends
+    putMVar dbVar $ db { cachedFriendIds_ = cachedFriends }
+    return friends
+
+fetchSubjects :: MVar Cache -> ProfileId -> IO (MVar (Set Subject)) -- TODO: use lens to factorize
+fetchSubjects dbVar profileId = do
+    db <- takeMVar dbVar
+    (subjects, cachedSubjects) <- fetchAndCache (cachedSubjects_ db) profileId httpGetSubjects
+    putMVar dbVar $ db { cachedSubjects_ = cachedSubjects }
+    return subjects
+
+fetchLastPosts :: MVar Cache -> ProfileId -> IO (MVar [BlogPost]) -- TODO: use lens to factorize
+fetchLastPosts dbVar profileId = do
+    db <- takeMVar dbVar
+    (posts, cachedPosts) <- fetchAndCache (cachedLastPosts_ db) profileId httpGetLastPosts
+    putMVar dbVar $ db { cachedLastPosts_ = cachedPosts }
+    return posts
+
+httpGetFriends :: ProfileId -> IO (MVar [ProfileId])
+httpGetFriends profileId = async $ do
+    logInfo ("Query for friends of " ++ show profileId)
+    liftIO (threadDelay 1000000)
+    return $ Map.findWithDefault [] profileId (friendIds_ inMemoryDb)
+
+httpGetSubjects :: ProfileId -> IO (MVar (Set Subject))
+httpGetSubjects profileId = async $ do
+    logInfo ("Query for subjects of " ++ show profileId)
+    liftIO (threadDelay 1000000)
+    return $ Map.findWithDefault Set.empty profileId (subjects_ inMemoryDb)
 
 httpGetLastPosts :: ProfileId -> IO (MVar [BlogPost])
 httpGetLastPosts profileId = async $ do
     logInfo ("Query for posts of " ++ show profileId)
     liftIO (threadDelay 1000000)
-    if profileId == 1 then
-        return [BlogPost "C++" 15, BlogPost "Java" 10]
-    else if profileId == 2 then
-        return [BlogPost "Haskell" 15, BlogPost "C++" 5]
-    else if profileId == 3 then
-        return [BlogPost "Java" 20]
-    else
-        return []
+    return $ Map.findWithDefault [] profileId (lastPosts_ inMemoryDb)
+
 
 --------------------------------------------------------------------------------
 -- Test
 --------------------------------------------------------------------------------
 
+inMemoryDb :: InMemoryDataSource
+inMemoryDb = InMemoryDataSource
+              { friendIds_ = Map.fromList [(1, [1, 2, 3]), (2, [1, 2, 3]), (3, [1, 2, 3])]
+              , subjects_ = Map.fromList [ (1, Set.fromList["C++", "Java"])
+                                         , (2, Set.fromList["C++", "Haskell"])
+                                         , (3, Set.fromList["Clojure", "Haskell"])]
+              , lastPosts_ = Map.fromList [ (1, [BlogPost "C++" 15, BlogPost "Java" 10] )
+                                          , (2, [BlogPost "Haskell" 15, BlogPost "C++" 5] )
+                                          , (3, [BlogPost "Java" 20])
+                                          ]}
+
 socialMediaTest :: IO ()
 socialMediaTest = do
-    let inMemoryDb = InMemoryDataSource
-                      { friendIds_ = Map.fromList [(1, [1, 2, 3]), (2, [1, 2, 3]), (3, [1, 2, 3])]
-                      , subjects_ = Map.fromList [ (1, Set.fromList["C++", "Java"])
-                                                 , (2, Set.fromList["C++", "Haskell"])
-                                                 , (3, Set.fromList["Clojure", "Haskell"])]
-                      , lastPosts_ = Map.fromList [ (1, [BlogPost "C++" 15, BlogPost "Java" 10] )
-                                                  , (2, [BlogPost "Haskell" 15, BlogPost "C++" 5] )
-                                                  , (3, [BlogPost "Java" 20])
-                                                  ]}
     print $ withInMemoryDb inMemoryDb $ do
         t1 <- getSuggestedPosts 1
         t2 <- getSuggestedPosts 2
         pure (t1, t2)
 
-    let cache = Cache
-                  { cachedFriendIds_ = friendIds_ inMemoryDb
-                  , cachedSubjects_ = subjects_ inMemoryDb
-                  , cachedLastPosts_ = Map.empty }
+    let cache = Cache { cachedFriendIds_ = Map.empty, cachedSubjects_ = Map.empty, cachedLastPosts_ = Map.empty }
     withProduction cache $ do
         t1 <- getSuggestedPosts 1
         t2 <- getSuggestedPosts 2
         liftIO (print (t1, t2))
-
-    -- To show that it does not reuse the same cache (we could however do it)
-    withProduction cache $ do
+    withProduction cache $ do -- with a new cache
         t1 <- getSuggestedPosts 2
         t2 <- getSuggestedPosts 3
         liftIO (print (t1, t2))
