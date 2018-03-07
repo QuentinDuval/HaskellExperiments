@@ -1,4 +1,4 @@
--- {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RecordWildCards #-}
 module SocialMedia(socialMediaTest) where
 
@@ -34,7 +34,7 @@ instance IAsync IO where
         mvar <- newEmptyMVar
         forkIO (io >>= putMVar mvar)
         pure mvar
-    await a = takeMVar a
+    await a = readMVar a
 
 -- chain :: MVar a -> (a -> b) -> MVar b
 chain :: MVar a -> (a -> b) -> IO (MVar b) -- TODO: Functor? How? Async?
@@ -77,7 +77,7 @@ onConnection :: (IRepository m) => ProfileId -> m [BlogPost]
 onConnection userId = do
     friendIds <- friendsOf userId
     subjects <- subjectsOf userId
-    friendsPosts <- forAll friendIds $ \friendId -> do
+    friendsPosts <- forM friendIds $ \friendId -> do
         posts <- lastPostsOf friendId
         return (filter (isAbout subjects) posts)
 
@@ -135,7 +135,11 @@ instance IRepository InMemoryRepository where
 -- Infrastructure code (distance call for trade versions)
 --------------------------------------------------------------------------------
 
-type Cache = InMemoryDataSource
+data Cache = Cache
+    { cachedFriendIds_ :: Map ProfileId [ProfileId]
+    , cachedSubjects_  :: Map ProfileId (Set Subject)
+    , cachedLastPosts_ :: Map ProfileId (MVar [BlogPost])
+    }
 
 -- The MVar is needed VS state monad to avoid sequential applicatives
 data ProductionRepository a = ProductionRepository
@@ -179,30 +183,31 @@ instance MonadIO ProductionRepository where
 instance IRepository ProductionRepository where
     friendsOf profileId = ProductionRepository $ \dbVar -> do
         db <- readMVar dbVar
-        sync $ return $ Map.findWithDefault [] profileId (friendIds_ db)
+        sync $ return $ Map.findWithDefault [] profileId (cachedFriendIds_ db)
     subjectsOf profileId = ProductionRepository $ \dbVar -> do
         db <- readMVar dbVar
-        sync $ return $ Map.findWithDefault Set.empty profileId (subjects_ db)
+        sync $ return $ Map.findWithDefault Set.empty profileId (cachedSubjects_ db)
     lastPostsOf profileId = ProductionRepository $ \dbVar ->
         fetchPosts dbVar profileId
 
 fetchPosts :: MVar Cache -> ProfileId -> IO (MVar [BlogPost])
 fetchPosts dbVar profileId = do
     db <- readMVar dbVar
-    case Map.lookup profileId (lastPosts_ db) of
-        Just posts -> sync (pure posts)
-        Nothing -> async $ do
+    case Map.lookup profileId (cachedLastPosts_ db) of
+        Just posts -> pure posts
+        Nothing -> do
+            -- Put the MVar in the map before completion to avoid multiple request to the same profileId
             transitions <- httpGetLastPosts profileId
             addInCache dbVar profileId transitions
             pure transitions
 
-addInCache :: MVar Cache -> ProfileId -> [BlogPost] -> IO ()
+addInCache :: MVar Cache -> ProfileId -> MVar [BlogPost] -> IO ()
 addInCache dbVar profileId posts = do
     db <- takeMVar dbVar
-    putMVar dbVar $ db { lastPosts_ = Map.insert profileId posts (lastPosts_ db) }
+    putMVar dbVar $ db { cachedLastPosts_ = Map.insert profileId posts (cachedLastPosts_ db) }
 
-httpGetLastPosts :: MonadIO m => ProfileId -> m [BlogPost]
-httpGetLastPosts profileId = do
+httpGetLastPosts :: ProfileId -> IO (MVar [BlogPost])
+httpGetLastPosts profileId = async $ do
     logInfo ("Query for posts of " ++ show profileId)
     liftIO (threadDelay 1000000)
     if profileId == 1 then
@@ -234,7 +239,10 @@ socialMediaTest = do
         t2 <- onConnection 2
         pure (t1, t2)
 
-    let cache = inMemoryDb { lastPosts_ = Map.empty }
+    let cache = Cache
+                  { cachedFriendIds_ = friendIds_ inMemoryDb
+                  , cachedSubjects_ = subjects_ inMemoryDb
+                  , cachedLastPosts_ = Map.empty }
     withProduction cache $ do
         t1 <- onConnection 1
         t2 <- onConnection 2
