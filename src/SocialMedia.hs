@@ -1,3 +1,4 @@
+-- {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ApplicativeDo #-}
 {-# LANGUAGE RecordWildCards #-}
 module SocialMedia(socialMediaTest) where
@@ -50,9 +51,6 @@ logInfo s = liftIO $ do
     putStrLn s
     putMVar ioMutex ()
 
-forAll :: (Applicative m) => [a] -> (a -> m b) -> m [b]
-forAll xs f = traverse f xs
-
 
 --------------------------------------------------------------------------------
 -- Domain code
@@ -71,19 +69,16 @@ class Monad m => IRepository m where
   friendsOf :: ProfileId -> m [ProfileId]
   subjectsOf :: ProfileId -> m (Set Subject)
   lastPostsOf :: ProfileId -> m [BlogPost]
-  -- saveSuggestions :: [BlogPost] -> m () -- TODO
 
-onConnection :: (IRepository m) => ProfileId -> m [BlogPost]
-onConnection userId = do
+-- This code is embarded in a "onConnection" use case... you cannot just separate effects
+getSuggestedPosts :: (IRepository m) => ProfileId -> m [BlogPost]
+getSuggestedPosts userId = do
     friendIds <- friendsOf userId
     subjects <- subjectsOf userId
     friendsPosts <- forM friendIds $ \friendId -> do
         posts <- lastPostsOf friendId
         return (filter (isAbout subjects) posts)
-
-    let suggestions = mostLiked 3 (concat friendsPosts)
-    -- saveSuggestions suggestions -- TODO
-    return suggestions
+    return $ mostLiked 3 (concat friendsPosts)
 
 isAbout :: (Set Subject) -> BlogPost -> Bool
 isAbout subjects subject = Set.member (postSubject subject) subjects
@@ -235,8 +230,8 @@ socialMediaTest = do
                                                   , (3, [BlogPost "Java" 20])
                                                   ]}
     print $ withInMemoryDb inMemoryDb $ do
-        t1 <- onConnection 1
-        t2 <- onConnection 2
+        t1 <- getSuggestedPosts 1
+        t2 <- getSuggestedPosts 2
         pure (t1, t2)
 
     let cache = Cache
@@ -244,13 +239,13 @@ socialMediaTest = do
                   , cachedSubjects_ = subjects_ inMemoryDb
                   , cachedLastPosts_ = Map.empty }
     withProduction cache $ do
-        t1 <- onConnection 1
-        t2 <- onConnection 2
+        t1 <- getSuggestedPosts 1
+        t2 <- getSuggestedPosts 2
         liftIO (print (t1, t2))
 
     -- To show that it does not reuse the same cache (we could however do it)
     withProduction cache $ do
-        t1 <- onConnection 2
-        t2 <- onConnection 3
+        t1 <- getSuggestedPosts 2
+        t2 <- getSuggestedPosts 3
         liftIO (print (t1, t2))
 --
