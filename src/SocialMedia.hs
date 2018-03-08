@@ -231,9 +231,9 @@ httpGetLastPosts profileId = async $ do
 
 inMemoryDb :: LocalProfileInfo
 inMemoryDb = LocalProfileInfo
-              { friendIds_ = Map.fromList [ (1, [1, 2, 3])
-                                          , (2, [1, 2, 3])
-                                          , (3, [1, 2, 3]) ]
+              { friendIds_ = Map.fromList [ (1, [2, 3])
+                                          , (2, [1, 3])
+                                          , (3, [1, 2]) ]
               , subjects_ = Map.fromList [ (1, Set.fromList["C++", "Java"])
                                          , (2, Set.fromList["C++", "Haskell"])
                                          , (3, Set.fromList["Clojure", "Haskell"])]
