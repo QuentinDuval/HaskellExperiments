@@ -85,7 +85,7 @@ getSuggestedPosts userId = do
         return suggestions
     else do
         suggestions <- suggestedPostsFor userId
-        saveSuggestion userId suggestions
+        saveSuggestion userId suggestions -- TODO: race between load and save (add withLock?)
         return suggestions
 
 onResetMessage :: (WithSuggestionDB m) => ProfileId -> m ()
