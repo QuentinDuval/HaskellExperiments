@@ -70,10 +70,28 @@ class Monad m => WithProfileInfo m where
   favoriteTopicsOf :: ProfileId -> m (Set Topic)
   lastPostsOf :: ProfileId -> m [BlogPost]
 
--- TODO: class for the saving of suggestions
+class Monad m => WithSuggestionDB m where
+  saveSuggestion :: ProfileId -> [BlogPost] -> m ()
+  loadSuggestion :: ProfileId -> m [BlogPost]
 
--- This code is embarded in a "onConnection" use case... you cannot just separate effects
--- TODO: save the suggested posts... and check it at the beginning... in context, would be reset by other notifications
+-- TODO - 2 USE CASES
+-- 1. We ask for the suggestion (REST API) => we search in DB first or call suggestedPostsFor
+-- 2. We ask for reset (JMS queue) => we call suggestedPostsFor and replace the suggestions
+
+getSuggestedPosts :: (WithProfileInfo m, WithSuggestionDB m) => ProfileId -> m [BlogPost]
+getSuggestedPosts userId = do
+    suggestions <- loadSuggestion userId
+    if not (null suggestions) then
+        return suggestions
+    else do
+        suggestions <- suggestedPostsFor userId
+        saveSuggestion userId suggestions
+        return suggestions
+
+onResetMessage :: (WithSuggestionDB m) => ProfileId -> m ()
+onResetMessage userId =
+    saveSuggestion userId []
+
 suggestedPostsFor :: (WithProfileInfo m) => ProfileId -> m [BlogPost]
 suggestedPostsFor userId = do
     friendIds <- friendsOf userId
@@ -98,6 +116,7 @@ data LocalProfileInfo = LocalProfileInfo
     { friendIds_ :: Map ProfileId [ProfileId]
     , subjects_ :: Map ProfileId (Set Topic)
     , lastPosts_ :: Map ProfileId [BlogPost]
+    , suggestions_ :: Map ProfileId [BlogPost]
     } deriving (Show, Eq, Ord)
 
 -- With such a threading of the state, no parallelization is possible
@@ -128,6 +147,12 @@ instance WithProfileInfo InMemoryRepository where
     lastPostsOf profileId = InMemoryRepository $ \db ->
         (Map.findWithDefault [] profileId (lastPosts_ db), db)
 
+instance WithSuggestionDB InMemoryRepository where
+    saveSuggestion userId posts = InMemoryRepository $ \db ->
+        ((), db { suggestions_ = Map.insert userId posts (suggestions_ db) })
+    loadSuggestion userId = InMemoryRepository $ \db ->
+        (Map.findWithDefault [] userId (suggestions_ db), db)
+
 
 --------------------------------------------------------------------------------
 -- Infrastructure code (distance call for trade versions)
@@ -137,6 +162,7 @@ data Cache = Cache
     { cachedFriendIds_ :: Map ProfileId (MVar [ProfileId])
     , cachedSubjects_  :: Map ProfileId (MVar (Set Topic))
     , cachedLastPosts_ :: Map ProfileId (MVar [BlogPost])
+    , savedSuggestions_ :: Map ProfileId [BlogPost]
     }
 
 -- The MVar is needed VS state monad to avoid sequential applicatives
@@ -177,6 +203,16 @@ instance WithProfileInfo RemoteProfileInfo where
     favoriteTopicsOf profileId = RemoteProfileInfo $ \dbVar -> fetchSubjects dbVar profileId
     lastPostsOf profileId = RemoteProfileInfo $ \dbVar -> fetchLastPosts dbVar profileId
 
+instance WithSuggestionDB RemoteProfileInfo where
+    saveSuggestion userId posts = RemoteProfileInfo $ \dbVar -> sync $ do
+        logInfo ("Save suggestion " ++ show userId)
+        db <- takeMVar dbVar
+        putMVar dbVar $ db { savedSuggestions_ = Map.insert userId posts (savedSuggestions_ db) }
+    loadSuggestion userId = RemoteProfileInfo $ \dbVar -> sync $ do
+        logInfo ("Load suggestion " ++ show userId)
+        db <- readMVar dbVar
+        return $ Map.findWithDefault [] userId (savedSuggestions_ db)
+
 fetchAndCache :: (Ord k) => Map k (MVar v) -> k -> (k -> IO (MVar v)) -> IO (MVar v, Map k (MVar v))
 fetchAndCache cache key f =
     case Map.lookup key cache of
@@ -211,19 +247,22 @@ fetchLastPosts dbVar profileId = do
 httpGetFriends :: ProfileId -> IO (MVar [ProfileId])
 httpGetFriends profileId = async $ do
     logInfo ("Query for friends of " ++ show profileId)
-    liftIO (threadDelay 1000000)
+    liftIO (threadDelay 500000)
+    logInfo ("Got friends of " ++ show profileId)
     return $ Map.findWithDefault [] profileId (friendIds_ inMemoryDb)
 
 httpGetSubjects :: ProfileId -> IO (MVar (Set Topic))
 httpGetSubjects profileId = async $ do
     logInfo ("Query for topics of " ++ show profileId)
     liftIO (threadDelay 1000000)
+    logInfo ("Got topics of " ++ show profileId)
     return $ Map.findWithDefault Set.empty profileId (subjects_ inMemoryDb)
 
 httpGetLastPosts :: ProfileId -> IO (MVar [BlogPost])
 httpGetLastPosts profileId = async $ do
     logInfo ("Query for posts of " ++ show profileId)
     liftIO (threadDelay 1000000)
+    logInfo ("Got posts of " ++ show profileId)
     return $ Map.findWithDefault [] profileId (lastPosts_ inMemoryDb)
 
 
@@ -242,22 +281,26 @@ inMemoryDb = LocalProfileInfo
               , lastPosts_ = Map.fromList [ (1, [BlogPost "C++" 15, BlogPost "Java" 10] )
                                           , (2, [BlogPost "Haskell" 15, BlogPost "C++" 5, BlogPost "C++" 10] )
                                           , (3, [BlogPost "Java" 20, BlogPost "Haskell" 5, BlogPost "Java" 5])
-                                          ]}
+                                          ]
+              , suggestions_ = Map.empty }
 
 socialMediaTest :: IO ()
 socialMediaTest = do
     print $ withInMemoryDb inMemoryDb $ do
-        t1 <- suggestedPostsFor 1
-        t2 <- suggestedPostsFor 2
-        pure (t1, t2)
+        t1 <- getSuggestedPosts 1
+        t1' <- getSuggestedPosts 1
+        t2 <- getSuggestedPosts 2
+        pure (t1, t1', t2)
 
-    let cache = Cache { cachedFriendIds_ = Map.empty, cachedSubjects_ = Map.empty, cachedLastPosts_ = Map.empty }
+    let cache = Cache { cachedFriendIds_ = Map.empty
+                      , cachedSubjects_ = Map.empty
+                      , cachedLastPosts_ = Map.empty
+                      , savedSuggestions_ = Map.empty }
+
     withRemoteProfileInfo cache $ do
-        t1 <- suggestedPostsFor 1
-        t2 <- suggestedPostsFor 2
-        liftIO (print (t1, t2))
-    withRemoteProfileInfo cache $ do -- with a new cache
-        t1 <- suggestedPostsFor 2
-        t2 <- suggestedPostsFor 3
-        liftIO (print (t1, t2))
+        t1 <- getSuggestedPosts 1
+        t1' <- getSuggestedPosts 1 -- TODO: there is actually a race here... but solved by caching of hot requests
+        t2 <- getSuggestedPosts 2
+        liftIO (print (t1, t1', t2))
+
 --
