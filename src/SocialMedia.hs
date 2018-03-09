@@ -57,32 +57,34 @@ logInfo s = liftIO $ do
 --------------------------------------------------------------------------------
 
 type ProfileId = Int
-type Subject = String
+type Topic = String
 type PostId = Int
 
 data BlogPost = BlogPost -- Would add a postId, but useless here
-  { postSubject :: Subject
+  { postSubject :: Topic
   , postLikes :: Int
   } deriving (Show, Eq, Ord)
 
 class Monad m => WithProfileInfo m where
   friendsOf :: ProfileId -> m [ProfileId]
-  subjectsOf :: ProfileId -> m (Set Subject)
+  favoriteTopicsOf :: ProfileId -> m (Set Topic)
   lastPostsOf :: ProfileId -> m [BlogPost]
+
+-- TODO: class for the saving of suggestions
 
 -- This code is embarded in a "onConnection" use case... you cannot just separate effects
 -- TODO: save the suggested posts... and check it at the beginning... in context, would be reset by other notifications
-getSuggestedPosts :: (WithProfileInfo m) => ProfileId -> m [BlogPost]
-getSuggestedPosts userId = do
+suggestedPostsFor :: (WithProfileInfo m) => ProfileId -> m [BlogPost]
+suggestedPostsFor userId = do
     friendIds <- friendsOf userId
-    subjects <- subjectsOf userId
+    topics <- favoriteTopicsOf userId
     friendsPosts <- forM friendIds $ \friendId -> do
         posts <- lastPostsOf friendId
-        return (filter (isAbout subjects) posts)
+        return (filter (isAbout topics) posts)
     return (mostLiked 3 (concat friendsPosts))
 
-isAbout :: (Set Subject) -> BlogPost -> Bool
-isAbout subjects subject = Set.member (postSubject subject) subjects
+isAbout :: (Set Topic) -> BlogPost -> Bool
+isAbout topics topic = Set.member (postSubject topic) topics
 
 mostLiked :: Int -> [BlogPost] -> [BlogPost]
 mostLiked n = take n . reverse . sortOn postLikes
@@ -94,7 +96,7 @@ mostLiked n = take n . reverse . sortOn postLikes
 
 data LocalProfileInfo = LocalProfileInfo
     { friendIds_ :: Map ProfileId [ProfileId]
-    , subjects_ :: Map ProfileId (Set Subject)
+    , subjects_ :: Map ProfileId (Set Topic)
     , lastPosts_ :: Map ProfileId [BlogPost]
     } deriving (Show, Eq, Ord)
 
@@ -121,7 +123,7 @@ instance Applicative InMemoryRepository where
 instance WithProfileInfo InMemoryRepository where
     friendsOf profileId = InMemoryRepository $ \db ->
         (Map.findWithDefault [] profileId (friendIds_ db), db)
-    subjectsOf profileId = InMemoryRepository $ \db ->
+    favoriteTopicsOf profileId = InMemoryRepository $ \db ->
         (Map.findWithDefault Set.empty profileId (subjects_ db), db)
     lastPostsOf profileId = InMemoryRepository $ \db ->
         (Map.findWithDefault [] profileId (lastPosts_ db), db)
@@ -133,7 +135,7 @@ instance WithProfileInfo InMemoryRepository where
 
 data Cache = Cache
     { cachedFriendIds_ :: Map ProfileId (MVar [ProfileId])
-    , cachedSubjects_  :: Map ProfileId (MVar (Set Subject))
+    , cachedSubjects_  :: Map ProfileId (MVar (Set Topic))
     , cachedLastPosts_ :: Map ProfileId (MVar [BlogPost])
     }
 
@@ -172,7 +174,7 @@ instance MonadIO RemoteProfileInfo where
 
 instance WithProfileInfo RemoteProfileInfo where
     friendsOf profileId = RemoteProfileInfo $ \dbVar -> fetchFriends dbVar profileId
-    subjectsOf profileId = RemoteProfileInfo $ \dbVar -> fetchSubjects dbVar profileId
+    favoriteTopicsOf profileId = RemoteProfileInfo $ \dbVar -> fetchSubjects dbVar profileId
     lastPostsOf profileId = RemoteProfileInfo $ \dbVar -> fetchLastPosts dbVar profileId
 
 fetchAndCache :: (Ord k) => Map k (MVar v) -> k -> (k -> IO (MVar v)) -> IO (MVar v, Map k (MVar v))
@@ -192,12 +194,12 @@ fetchFriends dbVar profileId = do
     putMVar dbVar $ db { cachedFriendIds_ = cachedFriends }
     return friends
 
-fetchSubjects :: MVar Cache -> ProfileId -> IO (MVar (Set Subject)) -- TODO: use lens to factorize
+fetchSubjects :: MVar Cache -> ProfileId -> IO (MVar (Set Topic)) -- TODO: use lens to factorize
 fetchSubjects dbVar profileId = do
     db <- takeMVar dbVar
-    (subjects, cachedSubjects) <- fetchAndCache (cachedSubjects_ db) profileId httpGetSubjects
+    (topics, cachedSubjects) <- fetchAndCache (cachedSubjects_ db) profileId httpGetSubjects
     putMVar dbVar $ db { cachedSubjects_ = cachedSubjects }
-    return subjects
+    return topics
 
 fetchLastPosts :: MVar Cache -> ProfileId -> IO (MVar [BlogPost]) -- TODO: use lens to factorize
 fetchLastPosts dbVar profileId = do
@@ -212,9 +214,9 @@ httpGetFriends profileId = async $ do
     liftIO (threadDelay 1000000)
     return $ Map.findWithDefault [] profileId (friendIds_ inMemoryDb)
 
-httpGetSubjects :: ProfileId -> IO (MVar (Set Subject))
+httpGetSubjects :: ProfileId -> IO (MVar (Set Topic))
 httpGetSubjects profileId = async $ do
-    logInfo ("Query for subjects of " ++ show profileId)
+    logInfo ("Query for topics of " ++ show profileId)
     liftIO (threadDelay 1000000)
     return $ Map.findWithDefault Set.empty profileId (subjects_ inMemoryDb)
 
@@ -238,24 +240,24 @@ inMemoryDb = LocalProfileInfo
                                          , (2, Set.fromList["C++", "Haskell"])
                                          , (3, Set.fromList["Clojure", "Haskell"])]
               , lastPosts_ = Map.fromList [ (1, [BlogPost "C++" 15, BlogPost "Java" 10] )
-                                          , (2, [BlogPost "Haskell" 15, BlogPost "C++" 5] )
-                                          , (3, [BlogPost "Java" 20, BlogPost "Haskell" 5])
+                                          , (2, [BlogPost "Haskell" 15, BlogPost "C++" 5, BlogPost "C++" 10] )
+                                          , (3, [BlogPost "Java" 20, BlogPost "Haskell" 5, BlogPost "Java" 5])
                                           ]}
 
 socialMediaTest :: IO ()
 socialMediaTest = do
     print $ withInMemoryDb inMemoryDb $ do
-        t1 <- getSuggestedPosts 1
-        t2 <- getSuggestedPosts 2
+        t1 <- suggestedPostsFor 1
+        t2 <- suggestedPostsFor 2
         pure (t1, t2)
 
     let cache = Cache { cachedFriendIds_ = Map.empty, cachedSubjects_ = Map.empty, cachedLastPosts_ = Map.empty }
     withRemoteProfileInfo cache $ do
-        t1 <- getSuggestedPosts 1
-        t2 <- getSuggestedPosts 2
+        t1 <- suggestedPostsFor 1
+        t2 <- suggestedPostsFor 2
         liftIO (print (t1, t2))
     withRemoteProfileInfo cache $ do -- with a new cache
-        t1 <- getSuggestedPosts 2
-        t2 <- getSuggestedPosts 3
+        t1 <- suggestedPostsFor 2
+        t2 <- suggestedPostsFor 3
         liftIO (print (t1, t2))
 --
