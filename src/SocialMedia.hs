@@ -74,7 +74,7 @@ class Monad m => WithSuggestionDB m where
   saveSuggestion :: ProfileId -> [BlogPost] -> m ()
   loadSuggestion :: ProfileId -> m [BlogPost]
 
--- TODO - 2 USE CASES
+-- TWO USE CASES
 -- 1. We ask for the suggestion (REST API) => we search in DB first or call suggestedPostsFor
 -- 2. We ask for reset (JMS queue) => we call suggestedPostsFor and replace the suggestions
 
@@ -85,7 +85,11 @@ getSuggestedPosts userId = do
         return suggestions
     else do
         suggestions <- suggestedPostsFor userId
-        saveSuggestion userId suggestions -- TODO: race between load and save (add withLock?)
+        -- TODO: race between load and save (add withLock?) - and dangerous WRITES in parallel
+        -- TODO: cannot be put in the same execution environment... you have to do it after...
+        -- TODO: or you have to offer a way to run a local environment inside this...
+        -- TODO: or you have to introduce a LOCK like primitive "loadSuggestionOr ..."
+        saveSuggestion userId suggestions
         return suggestions
 
 onResetMessage :: (WithSuggestionDB m) => ProfileId -> m ()
