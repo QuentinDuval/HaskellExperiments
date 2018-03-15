@@ -85,10 +85,11 @@ getSuggestedPosts userId = do
         return suggestions
     else do
         suggestions <- suggestedPostsFor userId
-        -- TODO: race between load and save (add withLock?) - and dangerous WRITES in parallel
-        -- TODO: cannot be put in the same execution environment... you have to do it after...
-        -- TODO: or you have to offer a way to run a local environment inside this...
+        -- TODO: race between load and save (add withLock?) - and dangerous WRITES in parallel (not if not linked with READS)
+        -- TODO: sequence the writer after, or you have to offer a way to run a local environment inside this (a pure fetch environment)...
         -- TODO: or you have to introduce a LOCK like primitive "loadSuggestionOr ..."
+        -- TODO: in the end, what you should have a PURE FETCH monad... in which you can recompose anything as you wish
+        --       and therefore avoid the separate procedure for multi-load for instance.
         saveSuggestion userId suggestions
         return suggestions
 
