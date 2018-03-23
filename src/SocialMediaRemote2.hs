@@ -67,6 +67,28 @@ dataFetch req = Fetch $ \ref -> do
       Success a <- readIORef box
       return (Done a)
 
+instance Functor (Fetch req) where
+  fmap f (Fetch x) = undefined
+
+instance Applicative (Fetch req) where
+  pure a = Fetch $ \cache -> pure (Done a)
+  Fetch f <*> Fetch x = Fetch $ \cache -> do
+    f' <- f cache
+    x' <- x cache
+    case (f', x') of
+      (Done g, Done y ) -> return (Done (g y))
+      (Done g, Blocked br c ) -> return (Blocked br (g <$> c))
+      (Blocked br c, Done y ) -> return (Blocked br (c <*> pure y))
+      (Blocked br1 c, Blocked br2 d) -> return (Blocked (br1 ++ br2) (c <*> d))
+
+instance Monad (Fetch req) where
+  Fetch m >>= k = Fetch $ \cache -> do
+    r <- m cache
+    case r of
+      Done a -> unFetch (k a) cache
+      Blocked br c -> return (Blocked br (c >>= k))
+
+
 
 --------------------------------------------------------------------------------
 -- Application
