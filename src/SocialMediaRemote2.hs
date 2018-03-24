@@ -1,5 +1,5 @@
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE GADTs, RankNTypes, ConstraintKinds #-}
+{-# LANGUAGE GADTs, RankNTypes, ConstraintKinds, FlexibleInstances, StandaloneDeriving, DeriveGeneric #-}
 module SocialMediaRemote2 where
 
 import Data.IORef
@@ -8,6 +8,7 @@ import qualified Data.HashMap.Lazy as HashMap
 import Data.HashMap.Lazy(HashMap)
 import qualified Data.Set
 import Data.Set(Set)
+import GHC.Generics
 import Unsafe.Coerce
 
 import SocialMedia
@@ -18,7 +19,16 @@ import SocialMedia
 --------------------------------------------------------------------------------
 
 test :: IO ()
-test = pure ()
+test = do
+    r <- withBulkProfileInfo $ do
+      t1 <- suggestedPostsFor 1
+      t1' <- suggestedPostsFor 1
+      t2 <- suggestedPostsFor 2
+      pure (t1, t1', t2)
+    print r
+
+withBulkProfileInfo :: BulkFetch ProfileRequest a -> IO a
+withBulkProfileInfo = withBulkRequests
 
 
 --------------------------------------------------------------------------------
@@ -128,5 +138,21 @@ data ProfileRequest a where
   FavoriteTopicsOf :: ProfileId -> ProfileRequest (Set Topic)
   LastPostsOf :: ProfileId -> ProfileRequest [BlogPost]
 
+deriving instance Eq (ProfileRequest a)
+
+instance Hashable (ProfileRequest a) where
+  hashWithSalt salt (FriendsOf userId) = 1 + hashWithSalt salt userId
+  hashWithSalt salt (FavoriteTopicsOf userId) = 2 + hashWithSalt salt userId
+  hashWithSalt salt (LastPostsOf userId) = 3 + hashWithSalt salt userId
+
+instance Fetchable ProfileRequest where
+  fetch requests = undefined
+  -- TODO: collect the different kinds of requests => run async those you can
+  -- TODO: => in theory we could move as soon as some start to come, the limits of the implementation
+
+instance WithProfileInfo (BulkFetch ProfileRequest) where
+  friendsOf = select . FriendsOf
+  favoriteTopicsOf = select . FavoriteTopicsOf
+  lastPostsOf = select . LastPostsOf
 
 --

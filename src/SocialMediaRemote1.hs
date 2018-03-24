@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 module SocialMediaRemote1 where
 
 import Control.Concurrent
