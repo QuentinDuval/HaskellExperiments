@@ -43,6 +43,9 @@ library
                      , RMQ2
                      , Shape
                      , SocialMedia
+                     , SocialMediaInMemory
+                     , SocialMediaRemote1
+                     , SocialMediaRemote2
                      , TLCQ
                      , TrainingL
                      , Tree
@@ -51,6 +54,8 @@ library
   build-depends:       base >= 4.7 && < 5
                      , conduit >= 1.2.0
                      , containers >= 0.5.7.1
+                     , hashable >= 1.2.4.0
+                     , unordered-containers >= 0.2.7.1
                      , data-fix >= 0.0.4
                      , directory >= 1.2.0.0
                      , HUnit >= 1.3.1.2

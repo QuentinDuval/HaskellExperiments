@@ -1,3 +1,4 @@
+{-# LANGUAGE ApplicativeDo #-}
 module SocialMediaInMemory where
 
 import Control.Monad
