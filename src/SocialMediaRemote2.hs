@@ -1,5 +1,6 @@
 {-# LANGUAGE ApplicativeDo #-}
-{-# LANGUAGE GADTs, RankNTypes, ConstraintKinds, FlexibleInstances, StandaloneDeriving, DeriveGeneric #-}
+{-# LANGUAGE GADTs, RankNTypes, ConstraintKinds, FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving, DeriveGeneric, DeriveAnyClass #-}
 module SocialMediaRemote2 where
 
 import Data.IORef
@@ -39,6 +40,8 @@ data RequestStatus a -- For the caching indicate an already running request
   = Success a
   | Processing
 
+-- The IORef is only there to give to the fetch method below...
+-- So that the implementation does not manipulate the cache
 data BlockedRequest req where
   BlockedRequest :: req a -> IORef (RequestStatus a) -> BlockedRequest req
 
@@ -133,6 +136,12 @@ select req = BulkFetch $ \ref -> do
 -- Application
 --------------------------------------------------------------------------------
 
+data ProfileRequestType
+  = FriendsOfRequest
+  | FavoriteTopicsOfRequest
+  | LastPostsOfRequest
+  deriving (Show, Eq, Ord, Generic, Hashable)
+
 data ProfileRequest a where
   FriendsOf :: ProfileId -> ProfileRequest [ProfileId]
   FavoriteTopicsOf :: ProfileId -> ProfileRequest (Set Topic)
@@ -141,14 +150,22 @@ data ProfileRequest a where
 deriving instance Eq (ProfileRequest a)
 
 instance Hashable (ProfileRequest a) where
-  hashWithSalt salt (FriendsOf userId) = 1 + hashWithSalt salt userId
-  hashWithSalt salt (FavoriteTopicsOf userId) = 2 + hashWithSalt salt userId
-  hashWithSalt salt (LastPostsOf userId) = 3 + hashWithSalt salt userId
+  hashWithSalt salt req@(FriendsOf userId) = hashWithSalt salt (requestType req) + hashWithSalt salt userId
+  hashWithSalt salt req@(FavoriteTopicsOf userId) = hashWithSalt salt (requestType req) + hashWithSalt salt userId
+  hashWithSalt salt req@(LastPostsOf userId) = hashWithSalt salt (requestType req) + hashWithSalt salt userId
 
+requestType :: ProfileRequest a -> ProfileRequestType
+requestType (FriendsOf _) = FriendsOfRequest
+requestType (FavoriteTopicsOf _) = FavoriteTopicsOfRequest
+requestType (LastPostsOf _) = LastPostsOfRequest
+
+-- This is one choice of implementation... in fact, if some requests on the DSL side can be
+-- served by a single request on the imlementation side, we can do something even different
+-- CHECK the imlementation of OM Next (that does DECLARATIVE queries as well)
 instance Fetchable ProfileRequest where
-  fetch requests = undefined
-  -- TODO: collect the different kinds of requests => run async those you can
-  -- TODO: => in theory we could move as soon as some start to come, the limits of the implementation
+  fetch requests =
+    let categories = HashMap.fromListWith (++) $ map (\r@(BlockedRequest req _) -> (requestType req, [r])) requests
+    in undefined
 
 instance WithProfileInfo (BulkFetch ProfileRequest) where
   friendsOf = select . FriendsOf
