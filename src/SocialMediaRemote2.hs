@@ -181,9 +181,12 @@ instance Fetchable ProfileRequest where
   fetch requests = do
     let categories = Map.fromListWith (++) $ map (\r@(BlockedRequest req _) -> (requestType req, [r])) requests
     let idsByCategories = (fmap . fmap) (\(BlockedRequest req _) -> userId req) categories
+
+    -- TODO: this is bad, doing a request still
     friendsAnswers <- async $ httpGetFriends $ Map.findWithDefault [] FriendsOfRequest idsByCategories
     topicsAnswers <- async $ httpGetTopics $ Map.findWithDefault [] FavoriteTopicsOfRequest idsByCategories
     lastPostsAnswers <- httpGetLastPosts $ Map.findWithDefault [] LastPostsOfRequest idsByCategories
+
     friendsAnswers <- await friendsAnswers
     topicsAnswers <- await topicsAnswers
     forM_ requests (fillRequest friendsAnswers topicsAnswers lastPostsAnswers)
@@ -204,6 +207,7 @@ fillRequest friendsAnswers topicsAnswers lastPostsAnswers (BlockedRequest reques
 --------------------------------------------------------------------------------
 
 httpGetFriends :: [ProfileId] -> IO (HashMap ProfileId [ProfileId])
+httpGetFriends [] = return HashMap.empty
 httpGetFriends profileIds = do
     logInfo ("Query for friends of " ++ show profileIds)
     threadDelay 1000000
@@ -212,6 +216,7 @@ httpGetFriends profileIds = do
     return $ HashMap.fromList (zip profileIds answers)
 
 httpGetTopics :: [ProfileId] -> IO (HashMap ProfileId (Set Topic))
+httpGetTopics [] = return HashMap.empty
 httpGetTopics profileIds = do
     logInfo ("Query for topics of " ++ show profileIds)
     threadDelay 1000000
@@ -220,6 +225,7 @@ httpGetTopics profileIds = do
     return $ HashMap.fromList (zip profileIds answers)
 
 httpGetLastPosts :: [ProfileId] -> IO (HashMap ProfileId [BlogPost])
+httpGetLastPosts [] = return HashMap.empty
 httpGetLastPosts profileIds = do
     logInfo ("Query for posts of " ++ show profileIds)
     threadDelay 1000000
