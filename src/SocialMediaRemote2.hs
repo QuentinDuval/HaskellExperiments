@@ -49,7 +49,7 @@ data RequestStatus a -- For the caching indicate an already running request
 -- The IORef is only there to give to the fetch method below...
 -- So that the implementation does not manipulate the cache
 data BlockedRequest req where
-  BlockedRequest :: req a -> IORef (RequestStatus a) -> BlockedRequest req
+  BlockedRequest :: { request :: req a, result :: IORef (RequestStatus a) } -> BlockedRequest req
 
 class Fetchable req where
   fetch :: [BlockedRequest req] -> IO ()
@@ -156,7 +156,11 @@ instance WithProfileInfo (BulkFetch ProfileRequest) where
 deriving instance Eq (ProfileRequest a)
 
 instance Hashable (ProfileRequest a) where
-  hashWithSalt salt req = hashWithSalt salt (requestType req) + hashWithSalt salt (userId req)
+  hashWithSalt salt req = hashWithSalt salt (requestType req) + hashWithSalt salt (userId req) where
+    requestType :: ProfileRequest a -> Int
+    requestType (FriendsOf _) = 1
+    requestType (FavoriteTopicsOf _) = 2
+    requestType (LastPostsOf _) = 3
 
 instance Fetchable ProfileRequest where
   fetch = fetchRequests
@@ -174,49 +178,20 @@ userId (LastPostsOf userId) = userId
 -- CHECK the imlementation of OM Next (that does DECLARATIVE queries as well)
 --------------------------------------------------------------------------------
 
-data ProfileRequestType
-  = FriendsOfRequest
-  | FavoriteTopicsOfRequest
-  | LastPostsOfRequest
-  deriving (Show, Eq, Ord, Generic, Hashable)
-
-requestType :: ProfileRequest a -> ProfileRequestType
-requestType (FriendsOf _) = FriendsOfRequest
-requestType (FavoriteTopicsOf _) = FavoriteTopicsOfRequest
-requestType (LastPostsOf _) = LastPostsOfRequest
-
 fetchRequests :: [BlockedRequest ProfileRequest] -> IO ()
-fetchRequests requests = do
-  -- let categories = Map.fromListWith (++) $ map (\(BlockedRequest r _) -> (requestType r, [userId r])) requests
-  let categories = Map.fromListWith (++) [ (requestType r, [userId r]) | (BlockedRequest r _) <- requests ]
+fetchRequests requests = parallelTasks
+  [ fillRequestCat httpGetFriends [(req, ret) | (BlockedRequest req@(FriendsOf _) ret) <- requests]
+  , fillRequestCat httpGetTopics [(req, ret) | (BlockedRequest req@(FavoriteTopicsOf _) ret) <- requests]
+  , fillRequestCat httpGetLastPosts [(req, ret) | (BlockedRequest req@(LastPostsOf _) ret) <- requests]
+  ]
 
-  friendsAnswers <- case Map.lookup FriendsOfRequest categories of
-                      Just ids -> async (httpGetFriends ids)
-                      Nothing -> sync (pure HashMap.empty)
-
-  topicsAnswers <- case Map.lookup FavoriteTopicsOfRequest categories of
-                    Just ids -> async (httpGetTopics ids)
-                    Nothing -> sync (pure HashMap.empty)
-
-  lastPostsAnswers <- case Map.lookup LastPostsOfRequest categories of
-                        Just ids -> sync (httpGetLastPosts ids)
-                        Nothing -> sync (pure HashMap.empty)
-
-  friendsAnswers <- await friendsAnswers
-  topicsAnswers <- await topicsAnswers
-  lastPostsAnswers <- await lastPostsAnswers
-
-  forM_ requests (fillRequest friendsAnswers topicsAnswers lastPostsAnswers)
-
-fillRequest :: HashMap ProfileId [ProfileId]
-              -> HashMap ProfileId (Set Topic)
-              -> HashMap ProfileId [BlogPost]
-              -> BlockedRequest ProfileRequest -> IO ()
-fillRequest friendsAnswers topicsAnswers lastPostsAnswers (BlockedRequest request ret) =
-  case request of
-    FriendsOf userId -> writeIORef ret (Success (friendsAnswers HashMap.! userId))
-    FavoriteTopicsOf userId -> writeIORef ret (Success (topicsAnswers HashMap.! userId))
-    LastPostsOf userId -> writeIORef ret (Success (lastPostsAnswers HashMap.! userId))
+fillRequestCat :: ([ProfileId] -> IO (HashMap ProfileId a)) -> [(ProfileRequest a, IORef (RequestStatus a))] -> IO ()
+fillRequestCat getRequest requests = do
+  let ids = map (userId . fst) requests
+  when (not (null ids)) $ do
+    answers <- getRequest ids
+    forM_ requests $ \(req, ret) -> do
+      writeIORef ret (Success (answers HashMap.! (userId req)))
 
 
 --------------------------------------------------------------------------------
@@ -264,6 +239,11 @@ instance IAsync IO where
         forkIO (io >>= putMVar mvar)
         pure mvar
     await a = readMVar a
+
+parallelTasks :: [IO a] -> IO ()
+parallelTasks ts = do
+  xs <- mapM async ts
+  mapM_ await xs
 
 ioMutex :: MVar ()
 {-# NOINLINE ioMutex #-}
