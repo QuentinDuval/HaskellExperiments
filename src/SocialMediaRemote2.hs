@@ -180,18 +180,18 @@ userId (LastPostsOf userId) = userId
 
 fetchRequests :: [BlockedRequest ProfileRequest] -> IO ()
 fetchRequests requests = parallelTasks
-  [ fillRequestCat httpGetFriends [(req, ret) | (BlockedRequest req@(FriendsOf _) ret) <- requests]
-  , fillRequestCat httpGetTopics [(req, ret) | (BlockedRequest req@(FavoriteTopicsOf _) ret) <- requests]
-  , fillRequestCat httpGetLastPosts [(req, ret) | (BlockedRequest req@(LastPostsOf _) ret) <- requests]
+  [ bulkRequest httpGetFriends [(userId, ret) | (BlockedRequest (FriendsOf userId) ret) <- requests]
+  , bulkRequest httpGetTopics [(userId, ret) | (BlockedRequest (FavoriteTopicsOf userId) ret) <- requests]
+  , bulkRequest httpGetLastPosts [(userId, ret) | (BlockedRequest (LastPostsOf userId) ret) <- requests]
   ]
 
-fillRequestCat :: ([ProfileId] -> IO (HashMap ProfileId a)) -> [(ProfileRequest a, IORef (RequestStatus a))] -> IO ()
-fillRequestCat getRequest requests = do
-  let ids = map (userId . fst) requests
+bulkRequest :: ([ProfileId] -> IO (HashMap ProfileId a)) -> [(ProfileId, IORef (RequestStatus a))] -> IO ()
+bulkRequest getRequest requests = do
+  let ids = map fst requests
   when (not (null ids)) $ do
     answers <- getRequest ids
-    forM_ requests $ \(req, ret) -> do
-      writeIORef ret (Success (answers HashMap.! (userId req)))
+    forM_ requests $ \(userId, ret) ->
+      writeIORef ret (Success (answers HashMap.! userId))
 
 
 --------------------------------------------------------------------------------
