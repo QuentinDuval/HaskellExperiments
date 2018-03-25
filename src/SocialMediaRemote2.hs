@@ -3,16 +3,22 @@
 {-# LANGUAGE StandaloneDeriving, DeriveGeneric, DeriveAnyClass #-}
 module SocialMediaRemote2 where
 
+import Control.Concurrent
+import Control.Monad
 import Data.IORef
 import Data.Hashable
+import qualified Data.Map as Map
+import Data.Map(Map)
 import qualified Data.HashMap.Lazy as HashMap
 import Data.HashMap.Lazy(HashMap)
-import qualified Data.Set
+import qualified Data.Set as Set
 import Data.Set(Set)
 import GHC.Generics
+import System.IO.Unsafe(unsafePerformIO)
 import Unsafe.Coerce
 
 import SocialMedia
+import SocialMediaInMemory
 
 
 --------------------------------------------------------------------------------
@@ -112,6 +118,7 @@ withBulkRequests f = do
 
 --------------------------------------------------------------------------------
 
+-- ^ Main method used create a request on the client side
 select :: IRequest req a => req a -> BulkFetch req a
 select req = BulkFetch $ \ref -> do
   cache <- readIORef ref
@@ -147,12 +154,20 @@ data ProfileRequest a where
   FavoriteTopicsOf :: ProfileId -> ProfileRequest (Set Topic)
   LastPostsOf :: ProfileId -> ProfileRequest [BlogPost]
 
+instance WithProfileInfo (BulkFetch ProfileRequest) where
+  friendsOf = select . FriendsOf
+  favoriteTopicsOf = select . FavoriteTopicsOf
+  lastPostsOf = select . LastPostsOf
+
 deriving instance Eq (ProfileRequest a)
 
 instance Hashable (ProfileRequest a) where
-  hashWithSalt salt req@(FriendsOf userId) = hashWithSalt salt (requestType req) + hashWithSalt salt userId
-  hashWithSalt salt req@(FavoriteTopicsOf userId) = hashWithSalt salt (requestType req) + hashWithSalt salt userId
-  hashWithSalt salt req@(LastPostsOf userId) = hashWithSalt salt (requestType req) + hashWithSalt salt userId
+  hashWithSalt salt req = hashWithSalt salt (requestType req) + hashWithSalt salt (userId req)
+
+userId :: (ProfileRequest a) -> ProfileId
+userId (FriendsOf userId) = userId
+userId (FavoriteTopicsOf userId) = userId
+userId (LastPostsOf userId) = userId
 
 requestType :: ProfileRequest a -> ProfileRequestType
 requestType (FriendsOf _) = FriendsOfRequest
@@ -163,13 +178,81 @@ requestType (LastPostsOf _) = LastPostsOfRequest
 -- served by a single request on the imlementation side, we can do something even different
 -- CHECK the imlementation of OM Next (that does DECLARATIVE queries as well)
 instance Fetchable ProfileRequest where
-  fetch requests =
-    let categories = HashMap.fromListWith (++) $ map (\r@(BlockedRequest req _) -> (requestType req, [r])) requests
-    in undefined
+  fetch requests = do
+    let categories = Map.fromListWith (++) $ map (\r@(BlockedRequest req _) -> (requestType req, [r])) requests
+    let idsByCategories = (fmap . fmap) (\(BlockedRequest req _) -> userId req) categories
+    friendsAnswers <- async $ httpGetFriends $ Map.findWithDefault [] FriendsOfRequest idsByCategories
+    topicsAnswers <- async $ httpGetTopics $ Map.findWithDefault [] FavoriteTopicsOfRequest idsByCategories
+    lastPostsAnswers <- httpGetLastPosts $ Map.findWithDefault [] LastPostsOfRequest idsByCategories
+    friendsAnswers <- await friendsAnswers
+    topicsAnswers <- await topicsAnswers
+    forM_ requests (fillRequest friendsAnswers topicsAnswers lastPostsAnswers)
 
-instance WithProfileInfo (BulkFetch ProfileRequest) where
-  friendsOf = select . FriendsOf
-  favoriteTopicsOf = select . FavoriteTopicsOf
-  lastPostsOf = select . LastPostsOf
+fillRequest :: HashMap ProfileId [ProfileId]
+              -> HashMap ProfileId (Set Topic)
+              -> HashMap ProfileId [BlogPost]
+              -> BlockedRequest ProfileRequest -> IO ()
+fillRequest friendsAnswers topicsAnswers lastPostsAnswers (BlockedRequest request ret) =
+  case request of
+    FriendsOf userId -> writeIORef ret (Success (friendsAnswers HashMap.! userId))
+    FavoriteTopicsOf userId -> writeIORef ret (Success (topicsAnswers HashMap.! userId))
+    LastPostsOf userId -> writeIORef ret (Success (lastPostsAnswers HashMap.! userId))
+
+
+--------------------------------------------------------------------------------
+-- Implementation of the requests
+--------------------------------------------------------------------------------
+
+httpGetFriends :: [ProfileId] -> IO (HashMap ProfileId [ProfileId])
+httpGetFriends profileIds = do
+    logInfo ("Query for friends of " ++ show profileIds)
+    threadDelay 1000000
+    logInfo ("Got friends of " ++ show profileIds)
+    let answers = map (\profileId -> Map.findWithDefault [] profileId (friendIds_ inMemoryDb)) profileIds
+    return $ HashMap.fromList (zip profileIds answers)
+
+httpGetTopics :: [ProfileId] -> IO (HashMap ProfileId (Set Topic))
+httpGetTopics profileIds = do
+    logInfo ("Query for topics of " ++ show profileIds)
+    threadDelay 1000000
+    logInfo ("Got topics of " ++ show profileIds)
+    let answers = map (\profileId -> Map.findWithDefault Set.empty profileId (subjects_ inMemoryDb)) profileIds
+    return $ HashMap.fromList (zip profileIds answers)
+
+httpGetLastPosts :: [ProfileId] -> IO (HashMap ProfileId [BlogPost])
+httpGetLastPosts profileIds = do
+    logInfo ("Query for posts of " ++ show profileIds)
+    threadDelay 1000000
+    logInfo ("Got posts of " ++ show profileIds)
+    let answers = map (\profileId -> Map.findWithDefault [] profileId (lastPosts_ inMemoryDb)) profileIds
+    return $ HashMap.fromList (zip profileIds answers)
+
+
+--------------------------------------------------------------------------------
+-- Utils
+--------------------------------------------------------------------------------
+
+class Monad m => IAsync m where
+    sync :: m a -> m (MVar a)
+    async :: m a -> m (MVar a)
+    await :: MVar a -> m a
+
+instance IAsync IO where
+    sync io = io >>= newMVar
+    async io = do
+        mvar <- newEmptyMVar
+        forkIO (io >>= putMVar mvar)
+        pure mvar
+    await a = readMVar a
+
+ioMutex :: MVar ()
+{-# NOINLINE ioMutex #-}
+ioMutex = unsafePerformIO (newMVar ())
+
+logInfo :: String -> IO ()
+logInfo s = do
+    takeMVar ioMutex
+    putStrLn s
+    putMVar ioMutex ()
 
 --
