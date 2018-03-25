@@ -140,14 +140,8 @@ select req = BulkFetch $ \ref -> do
 
 
 --------------------------------------------------------------------------------
--- Application
+-- Instiation of the generic DSL
 --------------------------------------------------------------------------------
-
-data ProfileRequestType
-  = FriendsOfRequest
-  | FavoriteTopicsOfRequest
-  | LastPostsOfRequest
-  deriving (Show, Eq, Ord, Generic, Hashable)
 
 data ProfileRequest a where
   FriendsOf :: ProfileId -> ProfileRequest [ProfileId]
@@ -164,32 +158,55 @@ deriving instance Eq (ProfileRequest a)
 instance Hashable (ProfileRequest a) where
   hashWithSalt salt req = hashWithSalt salt (requestType req) + hashWithSalt salt (userId req)
 
+instance Fetchable ProfileRequest where
+  fetch = fetchRequests
+
 userId :: (ProfileRequest a) -> ProfileId
 userId (FriendsOf userId) = userId
 userId (FavoriteTopicsOf userId) = userId
 userId (LastPostsOf userId) = userId
+
+--------------------------------------------------------------------------------
+-- Specific implementation of fetch
+--
+-- Highly depends on the Infrastructure... in fact, if some requests on the DSL side can be
+-- served by a single request on the imlementation side, we can do something even different
+-- CHECK the imlementation of OM Next (that does DECLARATIVE queries as well)
+--------------------------------------------------------------------------------
+
+data ProfileRequestType
+  = FriendsOfRequest
+  | FavoriteTopicsOfRequest
+  | LastPostsOfRequest
+  deriving (Show, Eq, Ord, Generic, Hashable)
 
 requestType :: ProfileRequest a -> ProfileRequestType
 requestType (FriendsOf _) = FriendsOfRequest
 requestType (FavoriteTopicsOf _) = FavoriteTopicsOfRequest
 requestType (LastPostsOf _) = LastPostsOfRequest
 
--- This is one choice of implementation... in fact, if some requests on the DSL side can be
--- served by a single request on the imlementation side, we can do something even different
--- CHECK the imlementation of OM Next (that does DECLARATIVE queries as well)
-instance Fetchable ProfileRequest where
-  fetch requests = do
-    let categories = Map.fromListWith (++) $ map (\r@(BlockedRequest req _) -> (requestType req, [r])) requests
-    let idsByCategories = (fmap . fmap) (\(BlockedRequest req _) -> userId req) categories
+fetchRequests :: [BlockedRequest ProfileRequest] -> IO ()
+fetchRequests requests = do
+  -- let categories = Map.fromListWith (++) $ map (\(BlockedRequest r _) -> (requestType r, [userId r])) requests
+  let categories = Map.fromListWith (++) [ (requestType r, [userId r]) | (BlockedRequest r _) <- requests ]
 
-    -- TODO: this is bad, doing a request still
-    friendsAnswers <- async $ httpGetFriends $ Map.findWithDefault [] FriendsOfRequest idsByCategories
-    topicsAnswers <- async $ httpGetTopics $ Map.findWithDefault [] FavoriteTopicsOfRequest idsByCategories
-    lastPostsAnswers <- httpGetLastPosts $ Map.findWithDefault [] LastPostsOfRequest idsByCategories
+  friendsAnswers <- case Map.lookup FriendsOfRequest categories of
+                      Just ids -> async (httpGetFriends ids)
+                      Nothing -> sync (pure HashMap.empty)
 
-    friendsAnswers <- await friendsAnswers
-    topicsAnswers <- await topicsAnswers
-    forM_ requests (fillRequest friendsAnswers topicsAnswers lastPostsAnswers)
+  topicsAnswers <- case Map.lookup FavoriteTopicsOfRequest categories of
+                    Just ids -> async (httpGetTopics ids)
+                    Nothing -> sync (pure HashMap.empty)
+
+  lastPostsAnswers <- case Map.lookup LastPostsOfRequest categories of
+                        Just ids -> sync (httpGetLastPosts ids)
+                        Nothing -> sync (pure HashMap.empty)
+
+  friendsAnswers <- await friendsAnswers
+  topicsAnswers <- await topicsAnswers
+  lastPostsAnswers <- await lastPostsAnswers
+
+  forM_ requests (fillRequest friendsAnswers topicsAnswers lastPostsAnswers)
 
 fillRequest :: HashMap ProfileId [ProfileId]
               -> HashMap ProfileId (Set Topic)
@@ -207,7 +224,6 @@ fillRequest friendsAnswers topicsAnswers lastPostsAnswers (BlockedRequest reques
 --------------------------------------------------------------------------------
 
 httpGetFriends :: [ProfileId] -> IO (HashMap ProfileId [ProfileId])
-httpGetFriends [] = return HashMap.empty
 httpGetFriends profileIds = do
     logInfo ("Query for friends of " ++ show profileIds)
     threadDelay 1000000
@@ -216,7 +232,6 @@ httpGetFriends profileIds = do
     return $ HashMap.fromList (zip profileIds answers)
 
 httpGetTopics :: [ProfileId] -> IO (HashMap ProfileId (Set Topic))
-httpGetTopics [] = return HashMap.empty
 httpGetTopics profileIds = do
     logInfo ("Query for topics of " ++ show profileIds)
     threadDelay 1000000
@@ -225,7 +240,6 @@ httpGetTopics profileIds = do
     return $ HashMap.fromList (zip profileIds answers)
 
 httpGetLastPosts :: [ProfileId] -> IO (HashMap ProfileId [BlogPost])
-httpGetLastPosts [] = return HashMap.empty
 httpGetLastPosts profileIds = do
     logInfo ("Query for posts of " ++ show profileIds)
     threadDelay 1000000
