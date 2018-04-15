@@ -1,15 +1,21 @@
 {-# LANGUAGE ApplicativeDo #-}
+{-# LANGUAGE GADTs, RankNTypes, ConstraintKinds, FlexibleInstances #-}
+{-# LANGUAGE StandaloneDeriving, DeriveGeneric, DeriveAnyClass #-}
 module SocialMediaRemote1 where
 
 import Control.Concurrent
 import Control.Monad
 import Data.Function(on)
+import Data.Hashable
+import qualified Data.HashMap.Lazy as HashMap
+import Data.HashMap.Lazy(HashMap)
 import Data.List
 import Data.Map(Map)
 import qualified Data.Map as Map
 import Data.Set(Set)
 import qualified Data.Set as Set
 import System.IO.Unsafe(unsafePerformIO)
+import Unsafe.Coerce
 
 import SocialMedia
 import SocialMediaInMemory
@@ -20,108 +26,114 @@ import SocialMediaInMemory
 --------------------------------------------------------------------------------
 
 test :: IO ()
-test = withRemoteProfileInfo emptyCache $ do
-        t1 <- getSuggestedPosts 1
-        t1' <- getSuggestedPosts 1
-        t2 <- getSuggestedPosts 2
+test = withRemoteProfileInfo $ do
+        t1 <- suggestedPostsFor 1
+        t1' <- suggestedPostsFor 1
+        t2 <- suggestedPostsFor 2
         liftIO (print (t1, t1', t2))
 
 
 --------------------------------------------------------------------------------
--- Infrastructure code (distance call for trade versions)
+-- Infrastructure code (Generic code)
 --------------------------------------------------------------------------------
 
-data Cache = Cache
-    { cachedFriendIds_ :: Map ProfileId (MVar [ProfileId])
-    , cachedSubjects_  :: Map ProfileId (MVar (Set Topic))
-    , cachedLastPosts_ :: Map ProfileId (MVar [BlogPost])
-    , savedSuggestions_ :: Map ProfileId [BlogPost]
-    }
+class Fetchable req where
+  fetch :: req a -> IO (MVar a)
 
-emptyCache :: Cache
-emptyCache = Cache { cachedFriendIds_ = Map.empty
-                   , cachedSubjects_ = Map.empty
-                   , cachedLastPosts_ = Map.empty
-                   , savedSuggestions_ = Map.empty }
+type Cachable req a = (Eq (req a), Hashable (req a))
+type IRequest req a = (Fetchable req, Cachable req a)
 
--- The MVar is needed VS state monad to avoid sequential applicatives
-data RemoteProfileInfo a = RemoteProfileInfo
-    { runRemoteProfileInfo :: MVar Cache -> IO (MVar a) }
+newtype RequestCache req =
+  RequestCache (forall a. HashMap (req a) (MVar a))
 
-withRemoteProfileInfo :: Cache -> RemoteProfileInfo a -> IO a
-withRemoteProfileInfo db f = do
-    dbVar <- newMVar db
-    await =<< runRemoteProfileInfo f dbVar
+emptyCache :: RequestCache req
+emptyCache = RequestCache HashMap.empty
 
-instance Functor RemoteProfileInfo where
-    fmap f m = RemoteProfileInfo $ \db -> do -- Chaining futures
-        var <- runRemoteProfileInfo m db
-        chain var f
+lookupCache :: IRequest req a => req a -> RequestCache req -> Maybe (MVar a)
+lookupCache key (RequestCache m) = HashMap.lookup key m
 
-instance Applicative RemoteProfileInfo where
-    pure a = RemoteProfileInfo $ \db -> sync (pure a)
+insertCache :: IRequest req a => req a -> MVar a -> RequestCache req -> RequestCache req
+insertCache key val (RequestCache m) = RequestCache $ unsafeCoerce (HashMap.insert key val m)
+
+--------------------------------------------------------------------------------
+
+newtype AsyncFetch req a =
+  AsyncFetch { runAsync :: MVar (RequestCache req) -> IO (MVar a) }
+
+instance Functor (AsyncFetch req) where
+  fmap f m = AsyncFetch $ \cache -> do
+    var <- runAsync m cache
+    chain var f
+
+instance Applicative (AsyncFetch req) where
+    pure a = AsyncFetch $ \cache -> sync (pure a)
     -- (<*>) = ap -- Without parallel procesing
-    mf <*> ma = RemoteProfileInfo $ \db -> do       -- With parallel processing
-        fVar <- async $ runRemoteProfileInfo mf db  -- TODO: mf may block! find another way?
-        aVar <- async $ runRemoteProfileInfo ma db
+    mf <*> ma = AsyncFetch $ \cache -> do
+        fVar <- async (runAsync mf cache)
+        aVar <- async (runAsync ma cache)
         async $ do
             f <- await =<< await fVar
             a <- await =<< await aVar
             pure (f a)
 
-instance Monad RemoteProfileInfo where
-    ra >>= f = RemoteProfileInfo $ \db -> do        -- Sequential processing needed
-        a <- await =<< runRemoteProfileInfo ra db
-        runRemoteProfileInfo (f a) db
+instance Monad (AsyncFetch req) where
+    ra >>= f = AsyncFetch $ \cache -> do        -- Sequential processing needed
+        a <- await =<< runAsync ra cache
+        runAsync (f a) cache
 
-instance MonadIO RemoteProfileInfo where
-    liftIO io = RemoteProfileInfo $ \db -> sync io
+instance MonadIO (AsyncFetch req) where
+    liftIO io = AsyncFetch $ \cache -> sync io
 
-instance WithProfileInfo RemoteProfileInfo where
-    friendsOf profileId = RemoteProfileInfo $ \dbVar -> fetchFriends dbVar profileId
-    favoriteTopicsOf profileId = RemoteProfileInfo $ \dbVar -> fetchSubjects dbVar profileId
-    lastPostsOf profileId = RemoteProfileInfo $ \dbVar -> fetchLastPosts dbVar profileId
+select :: IRequest req a => req a -> AsyncFetch req a
+select req = AsyncFetch $ \cacheVar -> do
+  cache <- takeMVar cacheVar
+  case lookupCache req cache of
+    Just var -> do
+      putMVar cacheVar cache
+      pure var
+    Nothing -> do
+      var <- fetch req
+      putMVar cacheVar (insertCache req var cache)
+      pure var
 
-instance WithSuggestionDB RemoteProfileInfo where
-    saveSuggestion userId posts = RemoteProfileInfo $ \dbVar -> sync $ do
-        logInfo ("Save suggestion " ++ show userId)
-        db <- takeMVar dbVar
-        putMVar dbVar $ db { savedSuggestions_ = Map.insert userId posts (savedSuggestions_ db) }
-    loadSuggestion userId = RemoteProfileInfo $ \dbVar -> sync $ do
-        logInfo ("Load suggestion " ++ show userId)
-        db <- readMVar dbVar
-        return $ Map.findWithDefault [] userId (savedSuggestions_ db)
-
-fetchAndCache :: (Ord k) => Map k (MVar v) -> k -> (k -> IO (MVar v)) -> IO (MVar v, Map k (MVar v))
-fetchAndCache cache key f =
-    case Map.lookup key cache of
-        Just posts -> pure (posts, cache)
-        Nothing -> do
-            result <- f key -- Put MVar in cache before completion (avoid multiple request to same key)
-            pure (result, Map.insert key result cache)
 
 --------------------------------------------------------------------------------
+-- Instiation for our DSL
+--------------------------------------------------------------------------------
 
-fetchFriends :: MVar Cache -> ProfileId -> IO (MVar [ProfileId]) -- TODO: use lens to factorize
-fetchFriends dbVar profileId = do
-    db <- takeMVar dbVar
-    (friends, cachedFriends) <- fetchAndCache (cachedFriendIds_ db) profileId httpGetFriends
-    putMVar dbVar $ db { cachedFriendIds_ = cachedFriends }
-    return friends
+withRemoteProfileInfo :: AsyncFetch ProfileRequest a -> IO a
+withRemoteProfileInfo f = do
+    cache <- newMVar emptyCache
+    await =<< runAsync f cache
 
-fetchSubjects :: MVar Cache -> ProfileId -> IO (MVar (Set Topic)) -- TODO: use lens to factorize
-fetchSubjects dbVar profileId = do
-    db <- takeMVar dbVar
-    (topics, cachedSubjects) <- fetchAndCache (cachedSubjects_ db) profileId httpGetSubjects
-    putMVar dbVar $ db { cachedSubjects_ = cachedSubjects }
-    return topics
+data ProfileRequest a where
+  FriendsOf :: ProfileId -> ProfileRequest [ProfileId]
+  FavoriteTopicsOf :: ProfileId -> ProfileRequest (Set Topic)
+  LastPostsOf :: ProfileId -> ProfileRequest [BlogPost]
 
-fetchLastPosts :: MVar Cache -> ProfileId -> IO (MVar [BlogPost]) -- TODO: use lens to factorize
-fetchLastPosts dbVar profileId = do
-    db <- takeMVar dbVar
-    (posts, cachedPosts) <- fetchAndCache (cachedLastPosts_ db) profileId httpGetLastPosts
-    putMVar dbVar $ db { cachedLastPosts_ = cachedPosts }
-    return posts
+instance WithProfileInfo (AsyncFetch ProfileRequest) where
+  friendsOf = select . FriendsOf
+  favoriteTopicsOf = select . FavoriteTopicsOf
+  lastPostsOf = select . LastPostsOf
+
+deriving instance Eq (ProfileRequest a)
+
+instance Hashable (ProfileRequest a) where
+  hashWithSalt salt req = hashWithSalt salt (requestType req) + hashWithSalt salt (userId req) where
+    requestType :: ProfileRequest a -> Int
+    requestType (FriendsOf _) = 1
+    requestType (FavoriteTopicsOf _) = 2
+    requestType (LastPostsOf _) = 3
+
+userId :: (ProfileRequest a) -> ProfileId
+userId (FriendsOf userId) = userId
+userId (FavoriteTopicsOf userId) = userId
+userId (LastPostsOf userId) = userId
+
+instance Fetchable ProfileRequest where
+  fetch (FriendsOf profileId) = httpGetFriends profileId
+  fetch (FavoriteTopicsOf profileId) = httpGetSubjects profileId
+  fetch (LastPostsOf profileId) = httpGetLastPosts profileId
 
 httpGetFriends :: ProfileId -> IO (MVar [ProfileId])
 httpGetFriends profileId = async $ do
