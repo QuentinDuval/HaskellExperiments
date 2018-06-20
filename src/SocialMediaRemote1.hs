@@ -14,6 +14,7 @@ import Data.Map(Map)
 import qualified Data.Map as Map
 import Data.Set(Set)
 import qualified Data.Set as Set
+import qualified Data.Time.Clock as Clock
 import System.IO.Unsafe(unsafePerformIO)
 import Unsafe.Coerce
 
@@ -189,7 +190,8 @@ ioMutex = unsafePerformIO (newMVar ())
 logInfo :: (MonadIO m) => String -> m ()
 logInfo s = liftIO $ do
     takeMVar ioMutex
-    putStrLn s
+    t <- Clock.getCurrentTime
+    putStrLn (show t ++ " - " ++ s)
     putMVar ioMutex ()
 
 --
