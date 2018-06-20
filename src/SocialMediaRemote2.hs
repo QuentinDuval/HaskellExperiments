@@ -13,6 +13,7 @@ import qualified Data.HashMap.Lazy as HashMap
 import Data.HashMap.Lazy(HashMap)
 import qualified Data.Set as Set
 import Data.Set(Set)
+import qualified Data.Time.Clock as Clock
 import GHC.Generics
 import System.IO.Unsafe(unsafePerformIO)
 import Unsafe.Coerce
@@ -252,7 +253,8 @@ ioMutex = unsafePerformIO (newMVar ())
 logInfo :: String -> IO ()
 logInfo s = do
     takeMVar ioMutex
-    putStrLn s
+    t <- Clock.getCurrentTime
+    putStrLn (show t ++ " - " ++ s)
     putMVar ioMutex ()
 
 --
