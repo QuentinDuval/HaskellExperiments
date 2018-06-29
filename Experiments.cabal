@@ -43,6 +43,7 @@ library
                      , RMQ2
                      , Shape
                      , SocialMedia
+                     , SocialMediaImperative
                      , SocialMediaInMemory
                      , SocialMediaRemote1
                      , SocialMediaRemote2
